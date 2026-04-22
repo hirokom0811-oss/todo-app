@@ -918,7 +918,8 @@ const S = {
   page: 'todo',
   tasks: [],
   goals: [],
-  blocks: [],       // 作業枠 [{id, title, date, startTime, endTime, createdAt}]
+  blocks: [],           // 作業枠 [{id, title, date, startTime, endTime, createdAt}]
+  blockTemplates: [],   // テンプレート [{id, title, startTime, endTime, theme}]
   completions: [], // [{taskId, date}] — 繰り返しタスクの日付別完了ログ
   themes: { work: ['設備計画','導入','活用','人づくり','コミュ・雑務'], personal: [] },
   filter: { status: 'all', category: 'all', date: 'all' },
@@ -943,6 +944,7 @@ function loadAll() {
   S.completions = JSON.parse(localStorage.getItem('todo_completions') || '[]');
   const th = localStorage.getItem('todo_themes');
   if (th) S.themes = JSON.parse(th);
+  S.blockTemplates = JSON.parse(localStorage.getItem('todo_block_templates') || '[]');
   // 旧データ移行: blockId (単数) → blockIds (配列)
   S.tasks.forEach(t => {
     if (!Array.isArray(t.blockIds)) {
@@ -955,7 +957,8 @@ const saveTasks       = () => localStorage.setItem('todo_tasks',       JSON.stri
 const saveGoals       = () => localStorage.setItem('todo_goals',       JSON.stringify(S.goals));
 const saveBlocks      = () => localStorage.setItem('todo_blocks',      JSON.stringify(S.blocks));
 const saveThemes      = () => localStorage.setItem('todo_themes',      JSON.stringify(S.themes));
-const saveCompletions = () => localStorage.setItem('todo_completions', JSON.stringify(S.completions));
+const saveCompletions     = () => localStorage.setItem('todo_completions',     JSON.stringify(S.completions));
+const saveBlockTemplates  = () => localStorage.setItem('todo_block_templates', JSON.stringify(S.blockTemplates));
 
 // ──────────────────────────────────────────────
 //  TASK CRUD
@@ -1006,6 +1009,26 @@ function addBlock(d) {
   saveBlocks();
   return b.id;
 }
+function addBlockTemplate(d) {
+  if (!d.title && !d.startTime) return false;
+  S.blockTemplates.push({ id: uuid(), title: d.title||'', startTime: d.startTime||'09:00', endTime: d.endTime||'10:00', theme: d.theme||'' });
+  saveBlockTemplates();
+  return true;
+}
+function deleteBlockTemplate(id) {
+  S.blockTemplates = S.blockTemplates.filter(t => t.id !== id);
+  saveBlockTemplates();
+}
+function applyBlockTemplate(templateId) {
+  if (!templateId) return;
+  const tpl = S.blockTemplates.find(t => t.id === templateId);
+  if (!tpl) return;
+  document.getElementById('bm-title').value = tpl.title;
+  document.getElementById('bm-start').value = tpl.startTime;
+  document.getElementById('bm-end').value   = tpl.endTime;
+  document.getElementById('bm-theme').value = tpl.theme;
+}
+
 function updateBlock(id, data) {
   const i = S.blocks.findIndex(b => b.id === id);
   if (i === -1) return;
@@ -1945,6 +1968,15 @@ function openBlockModal(id, prefillDate, prefillStart, prefillEnd) {
   const unlinked = b ? S.tasks.filter(t => !t.completed && !(t.blockIds||[]).includes(b.id)) : [];
 
   document.getElementById('block-modal-body').innerHTML = `
+    ${!b && S.blockTemplates.length ? `
+    <div class="form-group mb8">
+      <label>📋 テンプレートから選ぶ <span style="font-size:11px;color:var(--text-muted)">(任意)</span></label>
+      <select id="bm-template" onchange="applyBlockTemplate(this.value)"
+        style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:13px;font-family:inherit;background:var(--surface)">
+        <option value="">— テンプレートを選ぶ —</option>
+        ${S.blockTemplates.map(t=>`<option value="${t.id}">${h(t.title||'無題')} ${t.startTime}〜${t.endTime}${t.theme?' ['+h(t.theme)+']':''}</option>`).join('')}
+      </select>
+    </div>` : ''}
     <div class="form-group mb8">
       <label>タイトル <span style="font-size:11px;color:var(--text-muted)">(任意)</span></label>
       <input type="text" id="bm-title" value="${h(title)}" placeholder="例: 午前の作業・MTG準備">
@@ -2256,6 +2288,31 @@ function renderSettings() {
   const gistId = localStorage.getItem('todo_gist_id')    || '';
 
   body.innerHTML = catSection('work','仕事') + catSection('personal','個人') + `
+    <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:16px;margin-bottom:4px">
+      <div class="section-title">📋 作業枠テンプレート</div>
+      <div id="tpl-list">
+        ${S.blockTemplates.length ? S.blockTemplates.map(t => `
+          <div class="theme-item" style="gap:6px">
+            <span style="flex:1;font-size:12px">${h(t.title||'無題')} <span style="color:var(--text-muted)">${t.startTime}〜${t.endTime}${t.theme?' ['+h(t.theme)+']':''}</span></span>
+            <button class="btn btn-sm btn-danger" onclick="deleteBlockTemplate('${t.id}');renderSettings()">削除</button>
+          </div>`).join('')
+        : '<div style="color:var(--text-muted);font-size:12px;margin-bottom:8px">テンプレートがありません</div>'}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 70px 70px 1fr auto;gap:4px;margin-top:6px;align-items:center">
+        <input type="text"  id="nt-tpl-title" placeholder="タイトル"  style="font-size:12px;padding:4px 7px">
+        <input type="time"  id="nt-tpl-start" value="09:00"           style="font-size:12px;padding:4px 5px">
+        <input type="time"  id="nt-tpl-end"   value="10:00"           style="font-size:12px;padding:4px 5px">
+        <input type="text"  id="nt-tpl-theme" placeholder="テーマ"    style="font-size:12px;padding:4px 7px">
+        <button class="btn btn-primary btn-sm" onclick="
+          if(addBlockTemplate({title:document.getElementById('nt-tpl-title').value,
+            startTime:document.getElementById('nt-tpl-start').value,
+            endTime:document.getElementById('nt-tpl-end').value,
+            theme:document.getElementById('nt-tpl-theme').value})){
+            renderSettings();
+          } else { showToast('タイトルまたは時刻を入力してください'); }
+        ">追加</button>
+      </div>
+    </div>
     <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:16px">
       <div class="section-title">☁️ GitHub Gist 同期</div>
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;line-height:1.6">
