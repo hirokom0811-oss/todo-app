@@ -528,20 +528,17 @@
     .travel-toggle { display:flex; align-items:center; gap:5px; padding:5px 12px; border:1px solid var(--border); border-radius:20px; cursor:pointer; font-size:13px; background:var(--bg); transition:all .15s; user-select:none; touch-action:manipulation; }
     .travel-toggle input { display:none; }
     .travel-toggle:has(input:checked) { background:var(--primary); color:#fff; border-color:var(--primary); }
-    .travel-timeline-item { display:flex; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); align-items:flex-start; }
-    .travel-timeline-item:last-child { border-bottom:none; }
-    .travel-time-col { min-width:90px; text-align:right; font-size:12px; color:var(--text-muted); padding-top:2px; }
-    .travel-dot { width:10px; height:10px; border-radius:50%; background:var(--primary); flex-shrink:0; margin-top:4px; }
-    .travel-content { flex:1; }
     .travel-spot-name { font-weight:600; font-size:14px; margin-bottom:2px; }
     .travel-spot-desc { font-size:12px; color:var(--text-muted); line-height:1.5; margin-bottom:4px; }
     .travel-spot-notes { font-size:11px; color:var(--primary); }
     .travel-cat-badge { display:inline-block; font-size:10px; padding:1px 7px; border-radius:10px; background:var(--work-light); color:var(--work); margin-bottom:4px; }
     .travel-generating { text-align:center; padding:24px; color:var(--text-muted); font-size:14px; }
-    @media (max-width:480px) {
-      .travel-row { flex-direction:column; }
-      .travel-time-col { min-width:70px; }
-    }
+    .travel-spot-card { border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:10px; background:var(--surface); }
+    .travel-spot-card-header { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:6px; }
+    .travel-spot-meta { font-size:11px; color:var(--text-muted); margin-top:4px; }
+    .travel-register-form { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+    .travel-register-form .form-group { flex:1; min-width:90px; }
+    @media (max-width:480px) { .travel-row { flex-direction:column; } }
   </style>
 </head>
 <body>
@@ -713,10 +710,15 @@
       <div class="travel-section">
         <div class="travel-loc-row">
           <span id="travel-loc-text" style="flex:1;font-size:13px;color:var(--text-muted)">📍 位置が未取得です</span>
-          <button class="btn btn-sm btn-primary" onclick="getGeoLocation()">📍 現在地を取得</button>
+          <button class="btn btn-sm btn-primary" onclick="getGeoLocation()">📍 現在地</button>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:6px">
+          <input type="text" id="travel-place-input" placeholder="駅名・地名で検索（例: 渋谷駅、京都市）"
+            style="flex:1;font-size:12px" onkeydown="if(event.key==='Enter')searchByPlace()">
+          <button class="btn btn-sm btn-primary" onclick="searchByPlace()">🔍 場所を指定</button>
         </div>
         <div id="travel-loc-manual" style="display:none;margin-top:8px">
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">手動入力（位置取得が拒否された場合）</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">座標で直接入力</div>
           <div style="display:flex;gap:6px">
             <input type="number" id="travel-lat" placeholder="緯度 例: 35.6812" step="any" style="flex:1;font-size:12px">
             <input type="number" id="travel-lng" placeholder="経度 例: 139.7671" step="any" style="flex:1;font-size:12px">
@@ -727,47 +729,37 @@
 
       <!-- 条件入力 -->
       <div class="travel-section">
-        <div class="travel-row">
-          <div class="form-group" style="flex:1">
-            <label>日付</label>
-            <input type="date" id="travel-date">
-          </div>
-          <div class="form-group" style="flex:1">
-            <label>開始</label>
-            <input type="time" id="travel-start" value="09:00">
-          </div>
-          <div class="form-group" style="flex:1">
-            <label>終了</label>
-            <input type="time" id="travel-end" value="18:00">
-          </div>
-        </div>
-        <div class="form-group" style="margin-top:8px">
-          <label>優先項目（複数選択可）</label>
+        <div class="form-group">
+          <label>カテゴリ（複数選択可）</label>
           <div class="travel-toggle-group">
-            <label class="travel-toggle"><input type="checkbox" value="グルメ" checked> 🍜 グルメ</label>
-            <label class="travel-toggle"><input type="checkbox" value="観光"> 🏯 観光</label>
-            <label class="travel-toggle"><input type="checkbox" value="体験"> 🎨 体験</label>
-            <label class="travel-toggle"><input type="checkbox" value="ショッピング"> 🛍 ショッピング</label>
+            <label class="travel-toggle"><input type="checkbox" name="travel-cat" value="グルメ" checked> 🍜 グルメ</label>
+            <label class="travel-toggle"><input type="checkbox" name="travel-cat" value="観光" checked> 🏯 観光</label>
+            <label class="travel-toggle"><input type="checkbox" name="travel-cat" value="自然"> 🌿 自然</label>
+            <label class="travel-toggle"><input type="checkbox" name="travel-cat" value="体験"> 🎨 体験</label>
+            <label class="travel-toggle"><input type="checkbox" name="travel-cat" value="ショッピング"> 🛍 ショッピング</label>
           </div>
         </div>
-        <div class="form-group" style="margin-top:8px">
-          <label>移動手段</label>
+        <div class="form-group" style="margin-top:10px">
+          <label>検索範囲</label>
           <div class="travel-toggle-group">
-            <label class="travel-toggle"><input type="radio" name="travel-transport" value="徒歩" checked> 🚶 徒歩</label>
-            <label class="travel-toggle"><input type="radio" name="travel-transport" value="バス"> 🚌 バス</label>
-            <label class="travel-toggle"><input type="radio" name="travel-transport" value="電車"> 🚃 電車</label>
-            <label class="travel-toggle"><input type="radio" name="travel-transport" value="車"> 🚗 車</label>
+            <label class="travel-toggle"><input type="radio" name="travel-range" value="500m"> 500m</label>
+            <label class="travel-toggle"><input type="radio" name="travel-range" value="1km" checked> 1km</label>
+            <label class="travel-toggle"><input type="radio" name="travel-range" value="3km"> 3km</label>
+            <label class="travel-toggle"><input type="radio" name="travel-range" value="5km"> 5km</label>
           </div>
         </div>
-        <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="generateTravelPlan()">🗺️ ルートを生成</button>
+        <div class="form-group" style="margin-top:10px">
+          <label>キーワード（任意）</label>
+          <input type="text" id="travel-keyword" placeholder="例: ラーメン、桜、温泉">
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="searchNearbySpots()">🔍 スポットを検索</button>
       </div>
 
-      <!-- 結果タイムライン -->
+      <!-- 結果カード一覧 -->
       <div id="travel-result" style="display:none">
         <div class="travel-section">
           <div id="travel-summary" style="font-size:13px;color:var(--text-muted);margin-bottom:12px;line-height:1.6"></div>
-          <div id="travel-timeline"></div>
-          <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="registerAllSpots()">📅 全てカレンダーに登録</button>
+          <div id="travel-spot-list"></div>
         </div>
       </div>
 
@@ -777,6 +769,17 @@
 </main>
 
 <!-- ════════════════ MODALS ════════════════ -->
+
+<!-- Spot Detail -->
+<div id="modal-spot-detail" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <span id="spot-detail-title" style="font-weight:700;font-size:15px"></span>
+      <button class="btn btn-sm" onclick="document.getElementById('modal-spot-detail').style.display='none'">✕</button>
+    </div>
+    <div id="spot-detail-body" style="padding:4px 0 8px"></div>
+  </div>
+</div>
 
 <!-- Task Detail -->
 <div id="modal-task-detail" class="modal-overlay">
@@ -2383,18 +2386,32 @@ function renderSettings() {
   const gistId = localStorage.getItem('todo_gist_id')    || '';
 
   const claudeKey = localStorage.getItem('todo_gemini_api_key') || '';
+  const geminiModel = localStorage.getItem('todo_gemini_model') || 'gemini-2.0-flash';
 
   body.innerHTML = catSection('work','仕事') + catSection('personal','個人') + `
     <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:16px;margin-bottom:4px">
       <div class="section-title">🤖 Gemini API キー（旅モード用・無料）</div>
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;line-height:1.6">
-        aistudio.google.com → Get API key → Create API key（Googleアカウントのみ・無料）
+        aistudio.google.com → Get API key → Create API key in new project（Googleアカウント・無料）
       </div>
       <div class="theme-add-row">
         <input type="password" id="claude-key-input" value="${h(claudeKey)}"
           placeholder="AIzaSy..."
           style="font-family:monospace;font-size:11px">
         <button class="btn btn-primary btn-sm" onclick="saveGeminiApiKey()">保存</button>
+      </div>
+      <div style="margin-top:10px">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">モデル名（quota 0エラーが出る場合は変更）</div>
+        <div class="theme-add-row">
+          <input type="text" id="gemini-model-input" value="${h(geminiModel)}"
+            placeholder="gemini-2.0-flash"
+            style="font-family:monospace;font-size:11px">
+          <button class="btn btn-primary btn-sm" onclick="saveGeminiModel()">保存</button>
+        </div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:4px;line-height:1.5">
+          試す順: gemini-2.0-flash → gemini-2.0-flash-lite → gemini-1.5-pro<br>
+          ※ quota 0エラーはAPIキーの再作成（Create API key in <b>new project</b>）で解決することが多い
+        </div>
       </div>
     </div>
     <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:16px;margin-bottom:4px">
@@ -2696,6 +2713,13 @@ document.getElementById('import-file').addEventListener('change', e => {
 // ──────────────────────────────────────────────
 let _travelLat = null, _travelLng = null, _travelSpots = [];
 
+function saveGeminiModel() {
+  const val = document.getElementById('gemini-model-input').value.trim();
+  if (!val) { showToast('モデル名を入力してください'); return; }
+  localStorage.setItem('todo_gemini_model', val);
+  showToast('モデルを保存しました: ' + val);
+}
+
 function saveGeminiApiKey() {
   const val = document.getElementById('claude-key-input').value.trim();
   if (!val) { showToast('APIキーを入力してください'); return; }
@@ -2726,6 +2750,30 @@ function getGeoLocation() {
   );
 }
 
+async function searchByPlace() {
+  const q = document.getElementById('travel-place-input').value.trim();
+  if (!q) { showToast('場所名を入力してください'); return; }
+  const locText = document.getElementById('travel-loc-text');
+  locText.textContent = '🔍 検索中...';
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=jp&accept-language=ja`,
+      { headers: { 'Accept-Language': 'ja' } }
+    );
+    const data = await res.json();
+    if (!data.length) { locText.textContent = '📍 位置が未取得です'; showToast('場所が見つかりませんでした'); return; }
+    _travelLat = parseFloat(data[0].lat);
+    _travelLng = parseFloat(data[0].lon);
+    const name = data[0].display_name.split(',')[0];
+    locText.textContent = `📍 ${name}（緯度 ${_travelLat.toFixed(4)}, 経度 ${_travelLng.toFixed(4)}）`;
+    locText.style.color = 'var(--text)';
+    showToast(`📍 ${name} を設定しました`);
+  } catch (e) {
+    locText.textContent = '📍 位置が未取得です';
+    showToast('場所の検索に失敗しました: ' + e.message);
+  }
+}
+
 function setManualLocation() {
   const lat = parseFloat(document.getElementById('travel-lat').value);
   const lng = parseFloat(document.getElementById('travel-lng').value);
@@ -2735,104 +2783,242 @@ function setManualLocation() {
   showToast('位置を設定しました');
 }
 
-async function generateTravelPlan() {
-  const apiKey = localStorage.getItem('todo_gemini_api_key');
-  if (!apiKey) { showToast('先に設定からGemini APIキーを登録してください'); openSettings(); return; }
+async function searchNearbySpots() {
   if (_travelLat === null) { showToast('先に現在地を取得してください'); return; }
 
-  const date      = document.getElementById('travel-date').value || today();
-  const startTime = document.getElementById('travel-start').value || '09:00';
-  const endTime   = document.getElementById('travel-end').value   || '18:00';
-  const priorities = [...document.querySelectorAll('.travel-toggle input[type=checkbox]:checked')].map(el=>el.value);
-  const transport  = document.querySelector('input[name=travel-transport]:checked')?.value || '徒歩';
+  const categories = [...document.querySelectorAll('input[name=travel-cat]:checked')].map(el => el.value);
+  const rangeStr   = document.querySelector('input[name=travel-range]:checked')?.value || '1km';
+  const keyword    = document.getElementById('travel-keyword').value.trim().toLowerCase();
+  const rangeM     = rangeStr === '500m' ? 500 : parseInt(rangeStr) * 1000;
 
-  if (!priorities.length) { showToast('優先項目を1つ以上選択してください'); return; }
+  if (!categories.length) { showToast('カテゴリを1つ以上選択してください'); return; }
 
-  const resultDiv = document.getElementById('travel-result');
-  const timeline  = document.getElementById('travel-timeline');
+  const resultDiv  = document.getElementById('travel-result');
+  const spotList   = document.getElementById('travel-spot-list');
   resultDiv.style.display = '';
-  timeline.innerHTML = `<div class="travel-generating">⏳ Geminiがルートを考えています...</div>`;
   document.getElementById('travel-summary').textContent = '';
+  const lat = _travelLat, lng = _travelLng;
+  const needGourmet = categories.includes('グルメ');
+  spotList.innerHTML = `<div class="travel-generating">🔍 スポットを検索中…</div>`;
 
-  const prompt = `あなたは旅行プランナーです。以下の条件で観光スポットと最適ルートを提案してください。
-
-現在地: 緯度 ${_travelLat.toFixed(4)}, 経度 ${_travelLng.toFixed(4)}
-利用可能時間: ${startTime} 〜 ${endTime}
-優先項目: ${priorities.join('、')}
-移動手段: ${transport}
-
-必ず以下のJSON形式のみで回答してください（説明文は不要）:
-{
-  "spots": [
-    {
-      "name": "スポット名",
-      "description": "スポットの説明（80文字以内）",
-      "startTime": "HH:MM",
-      "endTime": "HH:MM",
-      "category": "グルメ|観光|体験|ショッピング",
-      "notes": "おすすめポイントや注意事項（40文字以内）"
-    }
-  ],
-  "summary": "ルート全体の一言説明（60文字以内）"
-}`;
+  // カテゴリ → Wikipedia タイトルキーワード
+  const catKeywords = {
+    'グルメ':      /料理|食堂|レストラン|ラーメン|うどん|そば|寿司|焼肉|cafe|カフェ/i,
+    '観光':        /神社|shrine|寺|temple|城|宮|史跡|名所|観光/i,
+    '自然':        /公園|park|山|川|滝|湖|池|森|庭園|海|浜|自然/i,
+    '体験':        /博物館|美術館|museum|動物園|水族館|遊園地|体験|工場/i,
+    'ショッピング': /商店|市場|百貨店|ショッピング|モール|商業/i,
+  };
+  const stayMap = { 'グルメ': 60, '観光': 90, '自然': 60, '体験': 120, 'ショッピング': 90 };
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
-        }),
-      }
+    // Wikipedia（観光・自然など）と Nominatim グルメを並列取得
+    const radius = Math.min(rangeM, 10000);
+    const [wikiElements, gourmetRaw] = await Promise.all([
+
+      // ── Wikipedia Geosearch ──
+      (async () => {
+        const geoData = await fetch(
+          `https://ja.wikipedia.org/w/api.php?action=query&list=geosearch`
+          + `&gscoord=${lat}|${lng}&gsradius=${radius}&gslimit=50&format=json&origin=*`
+        ).then(r => r.json());
+        const pages = geoData.query?.geosearch || [];
+        if (!pages.length) return [];
+        const extData = await fetch(
+          `https://ja.wikipedia.org/w/api.php?action=query&pageids=${pages.map(p => p.pageid).join('|')}`
+          + `&prop=extracts&exintro&exsentences=2&format=json&origin=*`
+        ).then(r => r.json());
+        const details = extData.query?.pages || {};
+        return pages.map(p => {
+          const ext  = details[p.pageid];
+          const desc = (ext?.extract || '').replace(/<[^>]+>/g, '').trim().slice(0, 80) || '観光スポット';
+          const dist = calcSpotDistance(lat, lng, p.lat, p.lon);
+          let category = '観光';
+          for (const [cat, re] of Object.entries(catKeywords)) {
+            if (re.test(p.title)) { category = cat; break; }
+          }
+          return { name: p.title, category, description: desc,
+            recommend: `現在地から約${dist < 1000 ? dist+'m' : (dist/1000).toFixed(1)+'km'}`,
+            stayMinutes: stayMap[category] || 60, dist, lat: p.lat, lng: p.lon, tags: {},
+            wikiUrl: `https://ja.wikipedia.org/wiki/${encodeURIComponent(p.title)}` };
+        });
+      })(),
+
+      // ── Nominatim グルメ（グルメ選択時のみ）──
+      needGourmet ? fetchGourmetSpots(lat, lng, rangeM) : Promise.resolve([]),
+    ]);
+
+    // Nominatim 結果をスポット形式に変換
+    const gourmetElements = gourmetRaw.map(p => {
+      const dist = calcSpotDistance(lat, lng, parseFloat(p.lat), parseFloat(p.lon));
+      const addr = [p.address?.suburb, p.address?.quarter, p.address?.road].filter(Boolean).join(' ');
+      const cuisine = p.extratags?.cuisine ? p.extratags.cuisine.replace(/[_;]/g, '・') : '';
+      return { name: p.name, category: 'グルメ',
+        description: [cuisine, addr].filter(Boolean).join(' ／ ') || 'グルメスポット',
+        recommend: `現在地から約${dist < 1000 ? dist+'m' : (dist/1000).toFixed(1)+'km'}`,
+        stayMinutes: 60, dist, lat: parseFloat(p.lat), lng: parseFloat(p.lon),
+        tags: p.extratags || {}, wikiUrl: null };
+    });
+
+    // マージ → カテゴリフィルター → キーワードフィルター → ソート
+    let elements = [...wikiElements, ...gourmetElements];
+    const filtered = elements.filter(e => categories.includes(e.category));
+    if (filtered.length) elements = filtered;
+    if (keyword) elements = elements.filter(e =>
+      e.name.toLowerCase().includes(keyword) || e.description.toLowerCase().includes(keyword)
     );
-    if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || res.status); }
-    const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('レスポンスのパースに失敗しました');
-    const parsed = JSON.parse(jsonMatch[0]);
-    _travelSpots = (parsed.spots || []).map(s => ({ ...s, date }));
-    renderTravelResult(_travelSpots, parsed.summary || '');
+    elements.sort((a, b) => a.dist - b.dist);
+    elements = elements.slice(0, 20);
+
+    _travelSpots = elements;
+    const srcLabel = needGourmet && categories.length > 1 ? 'Wikipedia + OpenStreetMap'
+                   : needGourmet ? 'OpenStreetMap'
+                   : 'Wikipedia';
+    const summary = elements.length
+      ? `📍 ${rangeStr}以内に ${elements.length}件見つかりました（${srcLabel}）`
+      : `${rangeStr}以内にスポットが見つかりませんでした`;
+    renderSpotResult(_travelSpots, summary);
+    if (!elements.length) showToast('範囲を広げるか、別の地名で試してください');
+
   } catch (e) {
-    timeline.innerHTML = `<div style="color:var(--high);padding:12px;font-size:13px">❌ エラー: ${h(e.message)}</div>`;
-    showToast('生成に失敗しました: ' + e.message);
+    spotList.innerHTML = `<div style="padding:12px;font-size:13px">
+      <div style="color:var(--high);margin-bottom:10px">❌ ${h(e.message)}</div>
+      <button class="btn btn-sm btn-primary" onclick="searchNearbySpots()">🔄 再試行</button>
+    </div>`;
+    showToast('検索に失敗しました');
   }
 }
 
-function renderTravelResult(spots, summary) {
-  document.getElementById('travel-summary').textContent = summary;
-  const tl = document.getElementById('travel-timeline');
-  if (!spots.length) { tl.innerHTML = '<div style="color:var(--text-muted);font-size:13px">スポットが見つかりませんでした</div>'; return; }
-  tl.innerHTML = spots.map((s, i) => `
-    <div class="travel-timeline-item">
-      <div class="travel-time-col">${h(s.startTime)}<br><span style="font-size:10px">〜${h(s.endTime)}</span></div>
-      <div class="travel-dot"></div>
-      <div class="travel-content">
-        <div class="travel-cat-badge">${h(s.category||'')}</div>
-        <div class="travel-spot-name">${h(s.name)}</div>
-        <div class="travel-spot-desc">${h(s.description||'')}</div>
-        ${s.notes ? `<div class="travel-spot-notes">💡 ${h(s.notes)}</div>` : ''}
+// Nominatim で近隣グルメスポットを取得
+async function fetchGourmetSpots(lat, lng, rangeM) {
+  const delta = rangeM / 111000;
+  const vb   = `${(lng - delta).toFixed(6)},${(lat + delta).toFixed(6)},${(lng + delta).toFixed(6)},${(lat - delta).toFixed(6)}`;
+  const base = `https://nominatim.openstreetmap.org/search?format=json&accept-language=ja`
+             + `&addressdetails=1&extratags=1&bounded=1&viewbox=${vb}&limit=20`;
+  const results = await Promise.all(
+    ['restaurant', 'cafe', 'fast_food'].map(a =>
+      fetch(`${base}&amenity=${a}`, { signal: AbortSignal.timeout(8000) })
+        .then(r => r.json()).catch(() => [])
+    )
+  );
+  // 重複除去（名前+座標で判定）
+  const seen = new Set();
+  return results.flat().filter(p => {
+    if (!p.name) return false;
+    const key = `${p.name}|${(+p.lat).toFixed(4)}|${(+p.lon).toFixed(4)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function calcSpotDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+  return Math.round(2 * R * Math.asin(Math.sqrt(a)));
+}
+
+function renderSpotResult(spots, summary) {
+  document.getElementById('travel-summary').innerHTML = summary;
+  const list = document.getElementById('travel-spot-list');
+  if (!spots.length) { list.innerHTML = '<div style="color:var(--text-muted);font-size:13px">スポットが見つかりませんでした</div>'; return; }
+  list.innerHTML = spots.map((s, i) => `
+    <div class="travel-spot-card">
+      <div class="travel-spot-card-header">
+        <div>
+          <div class="travel-cat-badge">${h(s.category||'')}</div>
+          <div class="travel-spot-name">${h(s.name)}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-sm" onclick="showSpotDetail(${i})">詳細</button>
+          <button class="btn btn-sm btn-primary" style="white-space:nowrap" onclick="toggleRegisterForm(${i})">📅 登録</button>
+        </div>
       </div>
-      <button class="btn btn-sm" style="flex-shrink:0;margin-top:2px" onclick="registerSpotToBlock(${i})">📅</button>
+      <div class="travel-spot-desc">${h(s.description||'')}</div>
+      ${s.recommend ? `<div class="travel-spot-notes">💡 ${h(s.recommend)}</div>` : ''}
+      <div class="travel-spot-meta">⏱ 滞在目安: ${s.stayMinutes||60}分</div>
+      <div id="travel-register-${i}" class="travel-register-form" style="display:none">
+        <div class="form-group"><label style="font-size:11px">日付</label><input type="date" id="travel-reg-date-${i}"></div>
+        <div class="form-group"><label style="font-size:11px">開始</label><input type="time" id="travel-reg-start-${i}"></div>
+        <div class="form-group"><label style="font-size:11px">終了</label><input type="time" id="travel-reg-end-${i}"></div>
+        <button class="btn btn-primary btn-sm" style="flex-shrink:0;align-self:flex-end" onclick="registerSpotToBlock(${i})">登録</button>
+      </div>
     </div>`).join('');
+}
+
+function showSpotDetail(idx) {
+  const s = _travelSpots[idx];
+  if (!s) return;
+  const t = s.tags || {};
+
+  // 表示するフィールド定義
+  const rows = [
+    ['カテゴリ',   s.category],
+    ['距離',       s.recommend],
+    ['滞在目安',   s.stayMinutes ? s.stayMinutes + '分' : null],
+    ['料理・種別', t.cuisine ? t.cuisine.replace(/[_;]/g, ' / ') : null],
+    ['営業時間',   t.opening_hours],
+    ['電話',       t.phone || t['contact:phone']],
+    ['ウェブサイト', t.website || t['contact:website']],
+    ['住所',       t['addr:full'] || [t['addr:province'], t['addr:city'], t['addr:quarter'], t['addr:street'], t['addr:housenumber']].filter(Boolean).join('')],
+    ['備考',       t.description || t['description:ja']],
+  ].filter(([, v]) => v);
+
+  const mapUrl = s.lat && s.lng
+    ? `https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.name)}`;
+
+  document.getElementById('spot-detail-title').textContent = s.name;
+  document.getElementById('spot-detail-body').innerHTML = `
+    <table style="width:100%;font-size:13px;border-collapse:collapse">
+      ${rows.map(([label, val]) => `
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:7px 8px 7px 0;color:var(--text-muted);white-space:nowrap;width:90px">${h(label)}</td>
+          <td style="padding:7px 0;word-break:break-all">${h(val)}</td>
+        </tr>`).join('')}
+    </table>
+    <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:8px">
+      <a href="${mapUrl}" target="_blank" rel="noopener" class="btn btn-sm btn-primary" style="text-decoration:none">🗺️ Google Mapsで見る</a>
+      ${s.wikiUrl ? `<a href="${h(s.wikiUrl)}" target="_blank" rel="noopener" class="btn btn-sm" style="text-decoration:none">📖 Wikipedia</a>` : ''}
+      <button class="btn btn-sm btn-primary" onclick="document.getElementById('modal-spot-detail').style.display='none';toggleRegisterForm(${idx})">📅 カレンダーに登録</button>
+      <button class="btn btn-sm" onclick="document.getElementById('modal-spot-detail').style.display='none'">閉じる</button>
+    </div>`;
+  document.getElementById('modal-spot-detail').style.display = 'flex';
+}
+
+function toggleRegisterForm(idx) {
+  const form = document.getElementById('travel-register-' + idx);
+  if (!form) return;
+  const visible = form.style.display !== 'none';
+  form.style.display = visible ? 'none' : '';
+  if (!visible) {
+    document.getElementById('travel-reg-date-' + idx).value = tod;
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const startTime = hh + ':' + mm;
+    const stayMin = _travelSpots[idx]?.stayMinutes || 60;
+    const endDate = new Date(now.getTime() + stayMin * 60000);
+    const eh = String(endDate.getHours()).padStart(2, '0');
+    const em = String(endDate.getMinutes()).padStart(2, '0');
+    document.getElementById('travel-reg-start-' + idx).value = startTime;
+    document.getElementById('travel-reg-end-' + idx).value = eh + ':' + em;
+  }
 }
 
 function registerSpotToBlock(idx) {
   const s = _travelSpots[idx];
   if (!s) return;
-  addBlock({ title: s.name, theme: '旅行', date: s.date, startTime: s.startTime, endTime: s.endTime });
+  const date      = document.getElementById('travel-reg-date-'  + idx).value;
+  const startTime = document.getElementById('travel-reg-start-' + idx).value;
+  const endTime   = document.getElementById('travel-reg-end-'   + idx).value;
+  if (!date || !startTime || !endTime) { showToast('日付と時刻を入力してください'); return; }
+  addBlock({ title: s.name, theme: '旅行', date, startTime, endTime });
   showToast(`「${s.name}」をカレンダーに登録しました`);
   renderAll();
-}
-
-function registerAllSpots() {
-  if (!_travelSpots.length) { showToast('先にルートを生成してください'); return; }
-  _travelSpots.forEach(s => addBlock({ title: s.name, theme: '旅行', date: s.date, startTime: s.startTime, endTime: s.endTime }));
-  showToast(`${_travelSpots.length}件をカレンダーに登録しました`);
-  renderAll();
+  toggleRegisterForm(idx);
 }
 
 function showPage(page) {
