@@ -448,7 +448,7 @@
     .modal-body { padding: 14px 18px; }
     .modal-footer {
       padding: 10px 18px; border-top: 1px solid var(--border);
-      display: flex; gap: 8px; justify-content: flex-end;
+      display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
       position: sticky; bottom: 0; background: var(--surface);
     }
     .mb8 { margin-bottom: 8px; }
@@ -691,12 +691,19 @@
         <div class="progress-bar"><div id="goal-progress-fill" class="progress-fill" style="width:0%"></div></div>
         <div id="goal-stats" class="progress-stats"></div>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap;">
         <div class="goal-view-toggle">
           <button id="goal-view-grid-btn" class="btn btn-sm active" onclick="setGoalView('grid')">⊞ グリッド</button>
           <button id="goal-view-list-btn" class="btn btn-sm" onclick="setGoalView('list')">≡ リスト</button>
         </div>
-        <button class="btn btn-primary" onclick="openAddGoalModal(null)">＋ 目標を追加</button>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button class="btn btn-sm" onclick="exportGoals()">📤 出力</button>
+          <label class="btn btn-sm" style="cursor:pointer;margin:0">
+            📥 読込
+            <input type="file" id="goals-import-file" accept=".csv,.json" style="display:none">
+          </label>
+          <button class="btn btn-primary btn-sm" onclick="openAddGoalModal(null)">＋ 目標を追加</button>
+        </div>
       </div>
       <div id="goal-grid"></div>
     </div>
@@ -941,6 +948,21 @@
   </div>
 </div>
 
+<!-- AI Task Suggestions -->
+<div id="modal-ai-tasks" class="modal-overlay" onclick="if(event.target===this)closeAllModals()">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <span class="modal-title">🤖 AIタスク提案</span>
+      <button class="modal-close" onclick="closeAllModals()">×</button>
+    </div>
+    <div id="ai-tasks-body" class="modal-body"></div>
+    <div class="modal-footer">
+      <button id="ai-tasks-add-btn" class="btn btn-primary">✅ 選択したタスクを追加</button>
+      <button class="btn" onclick="closeAllModals()">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add Goal -->
 <div id="modal-add-goal" class="modal-overlay">
   <div class="modal modal-sm">
@@ -1087,11 +1109,7 @@ function deleteTask(id) {
 function toggleComplete(id) {
   const t = S.tasks.find(t => t.id === id);
   if (!t) return;
-  if (t.recurrence) {
-    toggleCompletion(id, today()); // 繰り返しタスクは今日の日付ログを操作
-  } else {
-    updateTask(id, { completed: !t.completed });
-  }
+  updateTask(id, { completed: !t.completed });
 }
 
 // ──────────────────────────────────────────────
@@ -1389,11 +1407,13 @@ function toggleCompletion(taskId, ds) {
 }
 // 繰り返しタスクの全発生日を配列で返す（上限 366 日）
 function getOccurrenceDates(task) {
-  if (!task.recurrence || !task.scheduledDate) return [];
-  const endStr  = task.recurrenceEnd || today();
-  const endDate = new Date(endStr + 'T12:00:00');
-  const dates   = [];
-  const cur     = new Date(task.scheduledDate + 'T12:00:00');
+  if (!task.recurrence) return [];
+  // scheduledDate 未設定の場合は createdAt の日付 or 今日を開始日とする
+  const startStr = task.scheduledDate || task.createdAt?.slice(0, 10) || today();
+  const endStr   = task.recurrenceEnd || today();
+  const endDate  = new Date(endStr + 'T12:00:00');
+  const dates    = [];
+  const cur      = new Date(startStr + 'T12:00:00');
   while (cur <= endDate && dates.length < 366) {
     const dow = cur.getDay();
     if (task.recurrence !== 'weekday' || (dow >= 1 && dow <= 5)) {
@@ -1414,6 +1434,7 @@ function isRecurringFullyDone(task) {
 //   ds なし → 繰り返しは「全日完了」で判定（TODO一覧・全体ステータス用）
 function isTaskDone(t, ds) {
   if (!t.recurrence) return t.completed;
+  if (t.completed) return true;   // 強制完了フラグが立っていれば完了
   return ds ? isRecurringDone(t.id, ds) : isRecurringFullyDone(t);
 }
 function recurLabel(t) {
@@ -1925,10 +1946,11 @@ function openTaskDetail(id) {
   `;
 
   const btn = document.getElementById('td-complete-btn');
+  btn.style.display = '';
   if (t.recurrence) {
-    btn.style.display = 'none'; // 繰り返しタスクはチェックリストで操作
+    btn.textContent = t.completed ? '未完了に戻す' : '完了にする';
+    btn.onclick = () => { toggleComplete(id); closeAllModals(); renderAll(); };
   } else {
-    btn.style.display = '';
     btn.textContent = t.completed ? '未完了に戻す' : '完了にする';
     btn.onclick = () => { toggleComplete(id); closeAllModals(); renderAll(); };
   }
@@ -2238,9 +2260,25 @@ function openGoalDetail(id) {
   if (!g) return;
   document.getElementById('goal-detail-title').textContent = `#${g.number} 目標詳細`;
 
-  const linked = S.tasks.filter(t=>t.goalId===id);
-  const doneLinked = linked.filter(t=>isTaskDone(t));
-  const pct = linked.length ? Math.round(doneLinked.length/linked.length*100) : 0;
+  const linked  = S.tasks.filter(t => t.goalId === id);
+  const tod     = today();
+
+  // 繰り返しタスクは「1回以上完了」で done 扱い、通常タスクは completed フラグで判定
+  const doneLinked = linked.filter(t =>
+    t.recurrence
+      ? S.completions.some(c => c.taskId === t.id)
+      : isTaskDone(t)
+  );
+  const pct = linked.length ? Math.round(doneLinked.length / linked.length * 100) : 0;
+
+  // 繰り返しタスクの表示用データを事前計算
+  const recurStats = {};
+  linked.filter(t => t.recurrence).forEach(t => {
+    const totalOcc  = getOccurrenceDates(t).length;
+    const doneCount = S.completions.filter(c => c.taskId === t.id).length;
+    const todayDone = isRecurringDone(t.id, tod);
+    recurStats[t.id] = { totalOcc, doneCount, todayDone };
+  });
 
   document.getElementById('goal-detail-body').innerHTML = `
     <div class="detail-row"><span class="detail-label">番号</span>
@@ -2275,18 +2313,43 @@ function openGoalDetail(id) {
       <span class="detail-label">メモ</span>
       <textarea id="gd-memo" style="flex:1;min-height:60px;padding:5px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;resize:vertical">${h(g.memo||'')}</textarea>
     </div>
+    <div style="margin:14px 0 4px">
+      <button class="btn btn-primary" style="width:100%;font-size:13px"
+        onclick="decomposeGoal('${id}')">🤖 AIでTODO分解</button>
+    </div>
     <div class="linked-tasks-section">
       <div class="section-title">紐づきタスク (${doneLinked.length}/${linked.length} 完了)</div>
       ${linked.length?`
         <div class="progress-bar" style="margin-bottom:8px">
           <div class="progress-fill" style="width:${pct}%"></div>
         </div>
-        ${linked.map(t=>`
+        ${linked.map(t => {
+          if (t.recurrence) {
+            const rs = recurStats[t.id] || {};
+            const icon  = rs.todayDone ? '✓' : '🔄';
+            const color = rs.todayDone ? 'var(--goal-done)' : 'var(--primary)';
+            const label = recurLabel(t);
+            const countText = rs.doneCount
+              ? `${rs.doneCount}回完了${rs.totalOcc ? ' / ' + rs.totalOcc + '回' : ''}`
+              : '未完了';
+            return `
           <div class="linked-task-item" onclick="goToTask('${t.id}')">
-            <span style="color:${isTaskDone(t)?'var(--goal-done)':'var(--text-muted)'};font-size:13px">${isTaskDone(t)?'✓':'○'}</span>
-            <span style="${isTaskDone(t)?'text-decoration:line-through;color:var(--text-muted)':''}">${h(t.title)}</span>
+            <span style="color:${color};font-size:13px">${icon}</span>
+            <span>${h(t.title)}</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--text-muted);white-space:nowrap;text-align:right;line-height:1.4">
+              ${label}<br>${countText}
+            </span>
+          </div>`;
+          } else {
+            const done = isTaskDone(t);
+            return `
+          <div class="linked-task-item" onclick="goToTask('${t.id}')">
+            <span style="color:${done?'var(--goal-done)':'var(--text-muted)'};font-size:13px">${done?'✓':'○'}</span>
+            <span style="${done?'text-decoration:line-through;color:var(--text-muted)':''}">${h(t.title)}</span>
             ${t.dueDate?`<span class="badge badge-due" style="margin-left:auto">${t.dueDate}</span>`:''}
-          </div>`).join('')}
+          </div>`;
+          }
+        }).join('')}
       `:'<div style="color:var(--text-muted);font-size:12px">紐づいたタスクはありません</div>'}
     </div>
   `;
@@ -2323,6 +2386,161 @@ function goToTask(id) {
   showPage('todo');
   renderTodoList();
   setTimeout(() => { S.highlightId = null; }, 4000);
+}
+
+// ──────────────────────────────────────────────
+//  AI TODO 分解
+// ──────────────────────────────────────────────
+async function decomposeGoal(goalId) {
+  const g = S.goals.find(g => g.id === goalId);
+  if (!g) return;
+
+  const apiKey = localStorage.getItem('todo_gemini_api_key') || '';
+  if (!apiKey) {
+    showToast('設定から Gemini API キーを登録してください');
+    closeAllModals();
+    openSettings();
+    return;
+  }
+  const model = localStorage.getItem('todo_gemini_model') || 'gemini-2.0-flash';
+
+  // AI タスク提案モーダルを開いてローディング表示
+  document.getElementById('ai-tasks-body').innerHTML =
+    '<div class="travel-generating" style="padding:24px 0">🤖 タスクを生成中…</div>';
+  document.getElementById('ai-tasks-add-btn').onclick = null;
+  closeAllModals();
+  document.getElementById('modal-ai-tasks').classList.add('open');
+
+  const category   = g.category === '仕事' ? 'work' : 'personal';
+  const themeList  = (S.themes[category] || []).join('、');
+  const prompt = `あなたはタスク管理の専門家です。以下の目標を達成するための具体的なタスクを5〜10件提案してください。
+
+目標名: ${g.title}
+カテゴリ: ${g.category}
+テーマ: ${g.theme || 'なし'}
+メモ: ${g.memo || 'なし'}
+${themeList ? `利用可能なテーマ: ${themeList}` : ''}
+
+必ず以下のJSON形式のみで回答してください（説明文は一切不要）:
+{
+  "tasks": [
+    {
+      "title": "タスク名（30文字以内）",
+      "priority": "high | medium | low",
+      "scale": "large | medium | small",
+      "theme": "テーマ名または空文字",
+      "memo": "補足（30文字以内、任意）"
+    }
+  ]
+}
+priority: high=今すぐ必要, medium=通常, low=余裕があれば
+scale: large=2時間以上, medium=1〜2時間, small=1時間未満
+theme は利用可能なテーマから選ぶか空文字。`;
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const res  = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+
+    const raw     = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    let jsonStr   = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    // JSON が途中で切れた場合、最後の完全なオブジェクトまでで閉じる
+    const objStart = jsonStr.indexOf('{');
+    const arrStart = jsonStr.indexOf('"tasks"');
+    if (objStart !== -1) {
+      // 末尾の不完全な要素を除去して閉じる
+      const lastComma = jsonStr.lastIndexOf('},');
+      if (lastComma !== -1 && !jsonStr.trimEnd().endsWith(']}')) {
+        jsonStr = jsonStr.slice(0, lastComma + 1) + ']}';
+      }
+    }
+    const parsed  = JSON.parse(jsonStr);
+    const aiTasks = parsed.tasks || [];
+    if (!aiTasks.length) throw new Error('提案タスクが0件でした');
+
+    renderAiTaskSuggestions(aiTasks, goalId);
+
+  } catch (e) {
+    document.getElementById('ai-tasks-body').innerHTML = `
+      <div style="padding:16px">
+        <div style="color:var(--high);margin-bottom:12px">❌ ${h(e.message)}</div>
+        <button class="btn btn-sm btn-primary" onclick="decomposeGoal('${goalId}')">🔄 再試行</button>
+      </div>`;
+  }
+}
+
+function renderAiTaskSuggestions(tasks, goalId) {
+  const pColor = { high: 'var(--high)', medium: 'var(--medium-c)', low: 'var(--low)' };
+  const pLabel = { high: '優先:高', medium: '優先:中', low: '優先:低' };
+  const sLabel = { large: '規模:大', medium: '規模:中', small: '規模:小' };
+
+  document.getElementById('ai-tasks-body').innerHTML = `
+    <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;padding:0 2px">
+      <span style="font-size:12px;color:var(--text-muted)">${tasks.length}件のタスクが提案されました</span>
+      <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px">
+        <input type="checkbox" id="ai-select-all" checked onchange="toggleAiSelectAll(this.checked)"> 全選択
+      </label>
+    </div>
+    ${tasks.map((t, i) => `
+      <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;
+        border:1px solid var(--border);border-radius:7px;margin-bottom:7px;cursor:pointer;
+        background:var(--surface);transition:background .1s"
+        onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='var(--surface)'">
+        <input type="checkbox" name="ai-task-cb" value="${i}" checked style="margin-top:3px;flex-shrink:0">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500;margin-bottom:5px;line-height:1.4">${h(t.title)}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+            <span style="font-size:11px;padding:2px 8px;border-radius:10px;
+              background:${pColor[t.priority]||'var(--low)'};color:#fff;white-space:nowrap">
+              ${pLabel[t.priority] || t.priority}</span>
+            <span style="font-size:11px;padding:2px 8px;border-radius:10px;
+              background:var(--bg);border:1px solid var(--border);color:var(--text-muted);white-space:nowrap">
+              ${sLabel[t.scale] || t.scale}</span>
+            ${t.theme ? `<span style="font-size:11px;padding:2px 8px;border-radius:10px;
+              background:var(--work-light);color:var(--work);white-space:nowrap">${h(t.theme)}</span>` : ''}
+          </div>
+          ${t.memo ? `<div style="font-size:11px;color:var(--text-muted);margin-top:5px">💬 ${h(t.memo)}</div>` : ''}
+        </div>
+      </label>`).join('')}`;
+
+  document.getElementById('ai-tasks-add-btn').onclick = () => addSelectedAiTasks(tasks, goalId);
+}
+
+function toggleAiSelectAll(checked) {
+  document.querySelectorAll('input[name=ai-task-cb]').forEach(cb => cb.checked = checked);
+}
+
+function addSelectedAiTasks(tasks, goalId) {
+  const g       = S.goals.find(g => g.id === goalId);
+  const indices = [...document.querySelectorAll('input[name=ai-task-cb]:checked')].map(cb => parseInt(cb.value));
+  if (!indices.length) { showToast('タスクを1件以上選択してください'); return; }
+
+  const category = g?.category === '仕事' ? 'work' : 'personal';
+  indices.forEach(i => {
+    const t = tasks[i];
+    if (!t) return;
+    addTask({
+      title:    t.title,
+      category,
+      priority: ['high','medium','low'].includes(t.priority) ? t.priority : 'medium',
+      scale:    ['large','medium','small'].includes(t.scale)  ? t.scale  : 'medium',
+      theme:    t.theme || null,
+      goalId,
+    });
+  });
+
+  closeAllModals();
+  showPage('todo');
+  renderAll();
+  showToast(`✅ ${indices.length}件のタスクをTODOに追加しました`);
 }
 
 function openAddGoalModal(number) {
@@ -2390,7 +2608,7 @@ function renderSettings() {
 
   body.innerHTML = catSection('work','仕事') + catSection('personal','個人') + `
     <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:16px;margin-bottom:4px">
-      <div class="section-title">🤖 Gemini API キー（旅モード用・無料）</div>
+      <div class="section-title">🤖 Gemini API キー（旅モード・AI分解 共通・無料）</div>
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;line-height:1.6">
         aistudio.google.com → Get API key → Create API key in new project（Googleアカウント・無料）
       </div>
@@ -2682,6 +2900,114 @@ function exportJSON() {
 
   showToast('エクスポートしました');
 }
+
+// CSV のフィールドを安全にエスケープ
+function csvField(v) {
+  const s = String(v ?? '');
+  return (s.includes(',') || s.includes('"') || s.includes('\n'))
+    ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+// CSV テキストを [[行], [行]...] に変換（引用符・改行対応）
+function parseCSV(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // BOM除去
+  const rows = [];
+  let row = [], field = '', inQ = false;
+  for (let i = 0; i <= text.length; i++) {
+    const c = text[i];
+    if (c === undefined) { row.push(field); if (row.some(f => f)) rows.push(row); break; }
+    if (c === '"') {
+      if (inQ && text[i + 1] === '"') { field += '"'; i++; }
+      else inQ = !inQ;
+    } else if (c === ',' && !inQ) { row.push(field); field = ''; }
+    else if ((c === '\n' || c === '\r') && !inQ) {
+      row.push(field); field = '';
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      if (row.some(f => f)) rows.push(row);
+      row = [];
+    } else { field += c; }
+  }
+  return rows;
+}
+
+function exportGoals() {
+  const d = new Date();
+  const statusLabel = { notStarted: '未着手', inProgress: '進行中', done: '達成' };
+  const header = ['番号', 'タイトル', 'カテゴリ', 'ステータス', 'テーマ', 'メモ'];
+  const sorted = [...S.goals].sort((a, b) => a.number - b.number);
+  const rows   = sorted.map(g => [
+    g.number, g.title, g.category || '',
+    statusLabel[g.status] || '未着手',
+    g.theme || '', g.memo || '',
+  ].map(csvField).join(','));
+
+  // UTF-8 BOM付き（Excel で文字化けしないように）
+  const csv      = '﻿' + [header.join(','), ...rows].join('\r\n');
+  const filename = `goals_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}.csv`;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  showToast(`📤 やること100を CSV で出力しました（${sorted.length}件）`);
+}
+
+document.getElementById('goals-import-file').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const text = ev.target.result;
+
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        // ── CSV インポート ──
+        const rows = parseCSV(text);
+        if (rows.length < 2) throw new Error('データ行がありません');
+        const hdr     = rows[0];
+        const col     = k => hdr.indexOf(k);
+        const cNum    = col('番号'), cTitle = col('タイトル'), cCat = col('カテゴリ');
+        const cStatus = col('ステータス'), cTheme = col('テーマ'), cMemo = col('メモ');
+        if (cTitle === -1) throw new Error('「タイトル」列が見つかりません');
+        const statusMap = { '未着手': 'notStarted', '進行中': 'inProgress', '達成': 'done' };
+        const usedNums  = new Set();
+        const imported  = rows.slice(1).filter(r => r[cTitle]?.trim()).map(r => {
+          let num = cNum >= 0 ? parseInt(r[cNum]) : NaN;
+          if (isNaN(num) || num < 1 || num > 100 || usedNums.has(num)) {
+            num = 1; while (usedNums.has(num) && num <= 100) num++;
+          }
+          usedNums.add(num);
+          return {
+            id: uuid(), number: num,
+            title:    r[cTitle]?.trim() || '',
+            category: ['仕事','個人','その他'].includes(r[cCat]) ? r[cCat] : '仕事',
+            status:   statusMap[r[cStatus]] || 'notStarted',
+            theme:    cTheme >= 0 ? (r[cTheme] || '') : '',
+            memo:     cMemo  >= 0 ? (r[cMemo]  || '') : '',
+            doneAt: null, createdAt: new Date().toISOString(),
+          };
+        });
+        if (!imported.length) throw new Error('有効なデータが見つかりません');
+        if (!confirm(`${imported.length}件の目標を読み込みます。現在のデータは上書きされます。よろしいですか？`)) return;
+        S.goals = imported;
+
+      } else {
+        // ── JSON フォールバック ──
+        const data     = JSON.parse(text);
+        const imported = data.goals || (Array.isArray(data) ? data : null);
+        if (!Array.isArray(imported)) throw new Error('goals 配列が見つかりません');
+        if (!confirm(`${imported.length}件の目標を読み込みます。現在のデータは上書きされます。よろしいですか？`)) return;
+        S.goals = imported;
+      }
+
+      saveGoals(); renderAll();
+      showToast(`✅ ${S.goals.length}件の目標を読み込みました`);
+    } catch (err) { alert('読み込みエラー: ' + err.message); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
 
 document.getElementById('import-file').addEventListener('change', e => {
   const file = e.target.files[0];
