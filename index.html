@@ -2814,13 +2814,24 @@ async function suggestGoals() {
     if (!parsed.length) throw new Error('提案が0件でした');
 
     const goalMap = new Map(S.goals.map(g => [g.number, g]));
+    const statusLabel = { notStarted: '未着手', inProgress: '進行中', done: '達成' };
+    const statusStyle = { notStarted: 'background:#f1f5f9;color:#64748b', inProgress: 'background:#fef9c3;color:#92400e', done: 'background:#d1fae5;color:#065f46' };
+    const typeBadgeLabel = { achievement: '達成型', habit: '習慣型', explore: '探索型' };
+    const typeBadgeStyle = { achievement: 'background:#dbeafe;color:#1d4ed8', habit: 'background:#d1fae5;color:#065f46', explore: 'background:#fed7aa;color:#9a3412' };
     let html = '';
     parsed.forEach((item, idx) => {
       const g = goalMap.get(item.number);
       if (!g) return;
+      const st = g.status || 'notStarted';
+      const statusBadge = `<span style="font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600;${statusStyle[st]||''}">${statusLabel[st]||st}</span>`;
+      const typeBadge   = g.type ? `<span style="font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600;${typeBadgeStyle[g.type]||''}">${typeBadgeLabel[g.type]||''}</span>` : '';
       html += `
         <div style="margin-bottom:14px;padding-bottom:14px;${idx < parsed.length - 1 ? 'border-bottom:1px solid var(--border)' : ''}">
-          <div style="font-weight:600;font-size:13px;margin-bottom:4px">${idx + 1}. 「${h(g.title)}」</div>
+          <div style="display:flex;align-items:center;gap:5px;margin-bottom:5px;flex-wrap:wrap">
+            ${statusBadge}${typeBadge}
+            <span style="font-size:11px;color:var(--text-muted)">#${g.number}</span>
+          </div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px">${h(g.title)}</div>
           <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">→ ${h(item.reason)}</div>
           <button class="btn btn-sm btn-primary" onclick="closeAllModals();decomposeGoal('${g.id}')">🤖 AI分解する</button>
         </div>`;
