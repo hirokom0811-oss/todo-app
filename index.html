@@ -171,6 +171,17 @@
     .badge-theme { background: #ede9fe; color: #6d28d9; }
     .badge-recur { background: #fce7f3; color: #9d174d; }
     .badge-children { background: #d1fae5; color: #065f46; cursor: pointer; }
+    /* ── Goal type selector ── */
+    .goal-type-group { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
+    .goal-type-option {
+      display: flex; align-items: flex-start; gap: 9px;
+      padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px;
+      cursor: pointer; transition: background .1s;
+    }
+    @media (hover: hover) { .goal-type-option:hover { background: var(--bg); } }
+    .goal-type-option input[type=radio] { margin-top: 3px; flex-shrink: 0; accent-color: var(--primary); }
+    .goal-type-name { font-size: 13px; font-weight: 500; }
+    .goal-type-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
     .recur-date-list { max-height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; }
     .recur-date-row {
       display: flex; align-items: center; gap: 8px;
@@ -331,6 +342,10 @@
       content: '✓'; position: absolute; top: 1px; right: 3px;
       font-size: 9px; color: var(--goal-done); font-weight: 700;
     }
+    .goal-type-badge { display: inline-block; font-size: 7px; padding: 1px 4px; border-radius: 3px; font-weight: 600; margin-top: 2px; line-height: 1.4; }
+    .goal-type-badge.achievement { background: #dbeafe; color: #1d4ed8; }
+    .goal-type-badge.habit       { background: #d1fae5; color: #065f46; }
+    .goal-type-badge.explore     { background: #fed7aa; color: #9a3412; }
     /* ── Goal List View ── */
     .goal-view-toggle { display: flex; gap: 6px; }
     .goal-view-toggle .btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
@@ -696,6 +711,7 @@
         <div class="goal-view-toggle">
           <button id="goal-view-grid-btn" class="btn btn-sm active" onclick="setGoalView('grid')">⊞ グリッド</button>
           <button id="goal-view-list-btn" class="btn btn-sm" onclick="setGoalView('list')">≡ リスト</button>
+          <button id="goal-suggest-btn" class="btn btn-sm" onclick="suggestGoals()" style="white-space:nowrap">🤖 今月動けそうなGoalを提案</button>
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
           <button class="btn btn-sm" onclick="exportGoals()">📤 出力</button>
@@ -968,8 +984,8 @@
     </div>
     <div class="modal-body">
       <div class="form-group mb8">
-        <label>番号 (1〜100)</label>
-        <input type="number" id="add-goal-num" min="1" max="100">
+        <label>番号</label>
+        <input type="number" id="add-goal-num" min="1">
       </div>
       <div class="form-group mb8">
         <label>目標名</label>
@@ -983,6 +999,28 @@
           <option value="その他">その他</option>
         </select>
       </div>
+      <div class="form-group mb8">
+        <label>種類 <span style="font-size:11px;color:var(--text-muted)">(任意)</span></label>
+        <div class="goal-type-group">
+          <label class="goal-type-option">
+            <input type="radio" name="add-goal-type" value="achievement" onchange="onGoalTypeChange('add-goal')">
+            <div><div class="goal-type-name">達成型</div><div class="goal-type-desc">明確なゴールがあり、達成したら完了するもの</div></div>
+          </label>
+          <label class="goal-type-option">
+            <input type="radio" name="add-goal-type" value="habit" onchange="onGoalTypeChange('add-goal')">
+            <div><div class="goal-type-name">習慣型</div><div class="goal-type-desc">繰り返しで積み上げていくもの</div></div>
+          </label>
+          <label class="goal-type-option">
+            <input type="radio" name="add-goal-type" value="explore" onchange="onGoalTypeChange('add-goal')">
+            <div><div class="goal-type-name">探索型</div><div class="goal-type-desc">やりながら進め方を決めていくもの</div></div>
+          </label>
+        </div>
+      </div>
+      <div class="form-group mb8" id="add-goal-progress-note-group" style="display:none">
+        <label>現在の状況 <span style="font-size:11px;color:var(--text-muted)">(AIへのヒントになります)</span></label>
+        <textarea id="add-goal-progress-note" placeholder="例：現在120人。ビール特集が好評だった"
+          style="width:100%;min-height:60px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+      </div>
       <div class="form-group">
         <label>テーマ <span style="font-size:11px;color:var(--text-muted)">(任意)</span></label>
         <input type="text" id="add-goal-theme" placeholder="例: 設備計画、スキルアップ...">
@@ -991,6 +1029,20 @@
     <div class="modal-footer">
       <button class="btn btn-primary" onclick="saveAddGoal()">追加</button>
       <button class="btn" onclick="closeAllModals()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- Goal Suggest Modal -->
+<div id="modal-goal-suggest" class="modal-overlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <span class="modal-title">🤖 今月動けそうなGoal</span>
+      <button class="modal-close" onclick="closeAllModals()">×</button>
+    </div>
+    <div id="goal-suggest-body" class="modal-body" style="min-height:80px"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">閉じる</button>
     </div>
   </div>
 </div>
@@ -1202,6 +1254,7 @@ function addGoal(d) {
   S.goals.push({
     id: uuid(), number: d.number, title: d.title,
     category: d.category || '仕事', theme: d.theme || '',
+    type: d.type || null, progressNote: d.progressNote || null,
     status: 'notStarted',
     memo: '', doneAt: null, createdAt: new Date().toISOString(),
   });
@@ -1222,8 +1275,7 @@ function deleteGoal(id) {
 }
 function nextGoalNum() {
   const used = new Set(S.goals.map(g => g.number));
-  for (let i = 1; i <= 100; i++) { if (!used.has(i)) return i; }
-  return null;
+  for (let i = 1; ; i++) { if (!used.has(i)) return i; }
 }
 
 // ──────────────────────────────────────────────
@@ -1688,8 +1740,8 @@ function renderGoalGrid() {
   const inProg = S.goals.filter(g=>g.status==='inProgress').length;
   const total  = S.goals.length;
 
-  document.getElementById('goal-count').textContent = `${done} / 100 達成`;
-  document.getElementById('goal-progress-fill').style.width = `${done}%`;
+  document.getElementById('goal-count').textContent = `${done} / ${total} 達成`;
+  document.getElementById('goal-progress-fill').style.width = `${total > 0 ? Math.round(done / total * 100) : 0}%`;
   document.getElementById('goal-stats').textContent =
     `登録 ${total}件 ／ 達成 ${done}件 ／ 進行中 ${inProg}件 ／ 未着手 ${total-done-inProg}件`;
 
@@ -1699,13 +1751,17 @@ function renderGoalGrid() {
     const con = document.getElementById('goal-grid');
     con.className = 'goals-grid';
     const map = new Map(S.goals.map(g=>[g.number,g]));
+    const maxNum  = S.goals.length ? Math.max(...S.goals.map(g => g.number)) : 0;
+    const gridEnd = Math.ceil(Math.max(maxNum + 1, 10) / 10) * 10;
     let html = '';
-    for (let i=1; i<=100; i++) {
+    for (let i=1; i<=gridEnd; i++) {
       const g = map.get(i);
       if (g) {
+        const typeBadgeLabel = {achievement:'達成',habit:'習慣',explore:'探索'};
         html += `<div class="goal-cell ${g.status}" onclick="openGoalDetail('${g.id}')">
           <div class="goal-cell-num">${i}</div>
           <div class="goal-cell-title">${h(g.title)}</div>
+          ${g.type ? `<div class="goal-type-badge ${g.type}">${typeBadgeLabel[g.type]||''}</div>` : ''}
         </div>`;
       } else {
         html += `<div class="goal-cell" onclick="openAddGoalModal(${i})">
@@ -2257,6 +2313,21 @@ function openGoalDetail(id) {
       <input id="gd-theme" type="text" value="${h(g.theme||'')}" placeholder="例: 設備計画、スキルアップ..."
         style="flex:1;padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit">
     </div>
+    <div style="padding:4px 0 8px">
+      <div style="font-size:12px;font-weight:500;margin-bottom:6px">種類 <span style="font-size:11px;color:var(--text-muted);font-weight:400">(任意)</span></div>
+      <div class="goal-type-group">
+        ${[['achievement','達成型','明確なゴールがあり、達成したら完了するもの'],['habit','習慣型','繰り返しで積み上げていくもの'],['explore','探索型','やりながら進め方を決めていくもの']].map(([v,name,desc]) => `
+          <label class="goal-type-option">
+            <input type="radio" name="gd-type" value="${v}" ${g.type===v?'checked':''} onchange="onGoalTypeChange('gd')">
+            <div><div class="goal-type-name">${name}</div><div class="goal-type-desc">${desc}</div></div>
+          </label>`).join('')}
+      </div>
+    </div>
+    <div id="gd-progress-note-group" style="display:${g.type==='explore'?'':'none'};margin-bottom:10px">
+      <div style="font-size:12px;font-weight:500;margin-bottom:4px">現在の状況 <span style="font-size:11px;color:var(--text-muted);font-weight:400">(AIへのヒントになります)</span></div>
+      <textarea id="gd-progress-note" placeholder="例：現在120人。ビール特集が好評だった"
+        style="width:100%;min-height:60px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;resize:vertical">${h(g.progressNote||'')}</textarea>
+    </div>
     <div class="detail-row">
       <span class="detail-label">ステータス</span>
       <select id="gd-status" style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit">
@@ -2315,17 +2386,20 @@ function openGoalDetail(id) {
     const newTitle = document.getElementById('gd-title').value.trim();
     if (!newTitle) { showToast('目標名を入力してください'); return; }
     const newNum = parseInt(document.getElementById('gd-number').value);
-    if (isNaN(newNum) || newNum < 1 || newNum > 100) { showToast('番号は1〜100で入力してください'); return; }
+    if (isNaN(newNum) || newNum < 1) { showToast('番号は1以上で入力してください'); return; }
     if (newNum !== g.number && S.goals.find(x => x.id !== id && x.number === newNum)) {
       showToast('その番号は既に使用されています'); return;
     }
+    const newType = document.querySelector('input[name="gd-type"]:checked')?.value || null;
     updateGoal(id, {
-      number:   newNum,
-      title:    newTitle,
-      category: document.getElementById('gd-cat').value,
-      theme:    document.getElementById('gd-theme').value.trim(),
-      status:   document.getElementById('gd-status').value,
-      memo:     document.getElementById('gd-memo').value,
+      number:       newNum,
+      title:        newTitle,
+      category:     document.getElementById('gd-cat').value,
+      theme:        document.getElementById('gd-theme').value.trim(),
+      status:       document.getElementById('gd-status').value,
+      memo:         document.getElementById('gd-memo').value,
+      type:         newType,
+      progressNote: newType === 'explore' ? (document.getElementById('gd-progress-note').value.trim() || null) : null,
     });
     closeAllModals(); renderAll(); showToast('目標を更新しました');
   };
@@ -2436,6 +2510,28 @@ theme は利用可能なテーマから選ぶか空文字。`;
   }
 }
 
+function buildDecomposePrompt(goal) {
+  const base = `目標：${goal.title}\nカテゴリ：${goal.category}\n`;
+
+  if (goal.type === 'achievement') {
+    return base + `この目標を達成するために必要なタスクをすべて洗い出してください。
+具体的なアクションに分解し、5〜10件提案してください。`;
+
+  } else if (goal.type === 'habit') {
+    return base + `この習慣を継続するために、1ヶ月単位の繰り返しタスクを12ヶ月分提案してください。
+各タスクは「${goal.title}（1月）」のような形式で、
+recurrence を "weekly" または "daily"、recurrenceEnd を各月末日に設定してください。`;
+
+  } else if (goal.type === 'explore') {
+    return base + `現在の状況：${goal.progressNote || '未記入'}
+この目標に向けて、今すぐ取り組める具体的な次のアクションを5〜10件提案してください。
+現在の状況を踏まえて、現実的なタスクを提案してください。`;
+
+  } else {
+    return base + `この目標を達成するために必要なタスクを5〜10件提案してください。`;
+  }
+}
+
 async function decomposeGoal(goalId) {
   const g = S.goals.find(g => g.id === goalId);
   if (!g) return;
@@ -2458,14 +2554,9 @@ async function decomposeGoal(goalId) {
 
   const category   = g.category === '仕事' ? 'work' : 'personal';
   const themeList  = (S.themes[category] || []).join('、');
-  const prompt = `あなたはタスク管理の専門家です。以下の目標を達成するための具体的なタスクを5〜10件提案してください。
-
-目標名: ${g.title}
-カテゴリ: ${g.category}
-テーマ: ${g.theme || 'なし'}
-メモ: ${g.memo || 'なし'}
-${themeList ? `利用可能なテーマ: ${themeList}` : ''}
-
+  const prompt = `あなたはタスク管理の専門家です。
+${buildDecomposePrompt(g)}
+${themeList ? `利用可能なテーマ: ${themeList}\n` : ''}
 必ず以下のJSON形式のみで回答してください（説明文は一切不要）:
 {
   "tasks": [
@@ -2474,13 +2565,17 @@ ${themeList ? `利用可能なテーマ: ${themeList}` : ''}
       "priority": "high | medium | low",
       "scale": "large | medium | small",
       "theme": "テーマ名または空文字",
+      "recurrence": "daily | weekday | weekly | null",
+      "recurrenceEnd": "YYYY-MM-DD | null",
       "memo": "補足（30文字以内、任意）"
     }
   ]
 }
 priority: high=今すぐ必要, medium=通常, low=余裕があれば
 scale: large=2時間以上, medium=1〜2時間, small=1時間未満
-theme は利用可能なテーマから選ぶか空文字。`;
+theme は利用可能なテーマから選ぶか空文字。
+recurrence: 習慣系タスクのみ設定、それ以外は null。
+recurrenceEnd: YYYY-MM-DD形式、繰り返しなしの場合は null。`;
 
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -2551,6 +2646,8 @@ function renderAiTaskSuggestions(tasks, goalId) {
               ${sLabel[t.scale] || t.scale}</span>
             ${t.theme ? `<span style="font-size:11px;padding:2px 8px;border-radius:10px;
               background:var(--work-light);color:var(--work);white-space:nowrap">${h(t.theme)}</span>` : ''}
+            ${t.recurrence ? `<span style="font-size:11px;padding:2px 8px;border-radius:10px;
+              background:var(--personal-light);color:var(--personal);white-space:nowrap">🔁${recurLabel(t)}</span>` : ''}
           </div>
           ${t.memo ? `<div style="font-size:11px;color:var(--text-muted);margin-top:5px">💬 ${h(t.memo)}</div>` : ''}
         </div>
@@ -2573,11 +2670,13 @@ function addSelectedAiTasks(tasks, goalId) {
     const t = tasks[i];
     if (!t) return;
     addTask({
-      title:    t.title,
+      title:         t.title,
       category,
-      priority: ['high','medium','low'].includes(t.priority) ? t.priority : 'medium',
-      scale:    ['large','medium','small'].includes(t.scale)  ? t.scale  : 'medium',
-      theme:    t.theme || null,
+      priority:      ['high','medium','low'].includes(t.priority) ? t.priority : 'medium',
+      scale:         ['large','medium','small'].includes(t.scale)  ? t.scale  : 'medium',
+      theme:         t.theme || null,
+      recurrence:    ['daily','weekday','weekly'].includes(t.recurrence) ? t.recurrence : null,
+      recurrenceEnd: t.recurrenceEnd || null,
       goalId,
     });
   });
@@ -2614,11 +2713,14 @@ function addSelectedAiTasksFromEdit(tasks, category, theme) {
 
 function openAddGoalModal(number) {
   const num = (number !== null && number !== undefined) ? number : nextGoalNum();
-  if (num === null) { showToast('100件の目標がすべて登録済みです'); return; }
   document.getElementById('add-goal-num').value    = num;
   document.getElementById('add-goal-title').value  = '';
   document.getElementById('add-goal-cat').value    = '仕事';
   document.getElementById('add-goal-theme').value  = '';
+  // 種類ラジオをリセット
+  document.querySelectorAll('input[name="add-goal-type"]').forEach(r => r.checked = false);
+  document.getElementById('add-goal-progress-note-group').style.display = 'none';
+  document.getElementById('add-goal-progress-note').value = '';
   document.getElementById('modal-add-goal').classList.add('open');
   setTimeout(() => document.getElementById('add-goal-title').focus(), 100);
 }
@@ -2627,16 +2729,103 @@ function saveAddGoal() {
   const title = document.getElementById('add-goal-title').value.trim();
   if (!title) { showToast('目標名を入力してください'); return; }
   const num = parseInt(document.getElementById('add-goal-num').value);
-  if (isNaN(num) || num<1 || num>100) { showToast('番号は1〜100で入力してください'); return; }
+  if (isNaN(num) || num < 1) { showToast('番号は1以上で入力してください'); return; }
   if (S.goals.find(g=>g.number===num)) { showToast('その番号は既に使用されています'); return; }
+  const typeVal = document.querySelector('input[name="add-goal-type"]:checked')?.value || null;
   addGoal({ number: num, title,
-    category: document.getElementById('add-goal-cat').value,
-    theme:    document.getElementById('add-goal-theme').value.trim(),
+    category:     document.getElementById('add-goal-cat').value,
+    theme:        document.getElementById('add-goal-theme').value.trim(),
+    type:         typeVal,
+    progressNote: typeVal === 'explore' ? (document.getElementById('add-goal-progress-note').value.trim() || null) : null,
   });
   closeAllModals();
   renderGoalGrid();
   refreshGoalSelects();
   showToast('目標を追加しました');
+}
+
+function onGoalTypeChange(prefix) {
+  const checked = document.querySelector(`input[name="${prefix}-type"]:checked`);
+  const group   = document.getElementById(`${prefix}-progress-note-group`);
+  if (group) group.style.display = checked?.value === 'explore' ? '' : 'none';
+}
+
+function buildSuggestPrompt(goals) {
+  const today = new Date();
+  const month = today.getMonth() + 1;
+  const goalList = goals
+    .filter(g => g.status !== 'done')
+    .map(g => `- [${g.number}] ${h(g.title)}（${g.type || '未設定'}）状況：${g.progressNote || 'なし'}`)
+    .join('\n');
+
+  return `今月（${month}月）のやること100リストです。
+プライベート・自己成長系の目標の中から、
+今月小さく始められそうなものを3〜5件選んでください。
+
+優先順位ではなく「今の季節・状況で動きやすいか」「次のアクションが明確か」で選んでください。
+
+【目標リスト】
+${goalList}
+
+JSON形式で返してください：
+[{
+  "number": 1,
+  "reason": "選んだ理由を1〜2文で"
+}]`;
+}
+
+async function suggestGoals() {
+  const apiKey = localStorage.getItem('todo_gemini_api_key') || '';
+  if (!apiKey) { alert('設定からGemini APIキーを入力してください'); return; }
+
+  const btn = document.getElementById('goal-suggest-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 提案中…';
+
+  document.getElementById('goal-suggest-body').innerHTML =
+    '<div class="travel-generating" style="padding:24px 0;text-align:center">🤖 AIが分析中…</div>';
+  document.getElementById('modal-goal-suggest').classList.add('open');
+
+  try {
+    const model    = localStorage.getItem('todo_gemini_model') || 'gemini-2.0-flash';
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const prompt   = buildSuggestPrompt(S.goals);
+
+    const res  = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7 } }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+
+    const text  = data.candidates[0].content.parts[0].text;
+    const clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    if (!parsed.length) throw new Error('提案が0件でした');
+
+    const goalMap = new Map(S.goals.map(g => [g.number, g]));
+    let html = '';
+    parsed.forEach((item, idx) => {
+      const g = goalMap.get(item.number);
+      if (!g) return;
+      html += `
+        <div style="margin-bottom:14px;padding-bottom:14px;${idx < parsed.length - 1 ? 'border-bottom:1px solid var(--border)' : ''}">
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px">${idx + 1}. 「${h(g.title)}」</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">→ ${h(item.reason)}</div>
+          <button class="btn btn-sm btn-primary" onclick="closeAllModals();decomposeGoal('${g.id}')">🤖 AI分解する</button>
+        </div>`;
+    });
+    document.getElementById('goal-suggest-body').innerHTML = html || '<div style="padding:16px;color:var(--text-muted)">該当するGoalが見つかりませんでした</div>';
+
+  } catch (e) {
+    document.getElementById('goal-suggest-body').innerHTML =
+      `<div style="padding:16px;color:var(--high)">❌ ${h(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🤖 今月動けそうなGoalを提案';
+  }
 }
 
 // ──────────────────────────────────────────────
@@ -3015,8 +3204,8 @@ document.getElementById('goals-import-file').addEventListener('change', e => {
         const usedNums  = new Set();
         const imported  = rows.slice(1).filter(r => r[cTitle]?.trim()).map(r => {
           let num = cNum >= 0 ? parseInt(r[cNum]) : NaN;
-          if (isNaN(num) || num < 1 || num > 100 || usedNums.has(num)) {
-            num = 1; while (usedNums.has(num) && num <= 100) num++;
+          if (isNaN(num) || num < 1 || usedNums.has(num)) {
+            num = 1; while (usedNums.has(num)) num++;
           }
           usedNums.add(num);
           return {
