@@ -2753,8 +2753,12 @@ function onGoalTypeChange(prefix) {
 function buildSuggestPrompt(goals) {
   const today = new Date();
   const month = today.getMonth() + 1;
-  const goalList = goals
-    .filter(g => g.status !== 'done')
+  const notStarted = goals
+    .filter(g => g.status === 'notStarted')
+    .map(g => `- [${g.number}] ${h(g.title)}（${g.type || '未設定'}）状況：${g.progressNote || 'なし'}`)
+    .join('\n');
+  const inProgress = goals
+    .filter(g => g.status === 'inProgress')
     .map(g => `- [${g.number}] ${h(g.title)}（${g.type || '未設定'}）状況：${g.progressNote || 'なし'}`)
     .join('\n');
 
@@ -2763,9 +2767,13 @@ function buildSuggestPrompt(goals) {
 今月小さく始められそうなものを3〜5件選んでください。
 
 優先順位ではなく「今の季節・状況で動きやすいか」「次のアクションが明確か」で選んでください。
+まだ着手していない目標を優先し、進行中の目標は補足的に選んでください。
 
-【目標リスト】
-${goalList}
+【未着手の目標】（優先して選んでください）
+${notStarted || '（なし）'}
+
+【進行中の目標】（必要なら選んでも構いません）
+${inProgress || '（なし）'}
 
 JSON形式で返してください：
 [{
