@@ -896,17 +896,7 @@
         <label>作業日</label>
         <input type="date" id="sched-date">
       </div>
-      <div class="form-row">
-        <div class="form-group mb8">
-          <label>開始時刻</label>
-          <input type="time" id="sched-time" oninput="autoFillEndTime()">
-        </div>
-        <div class="form-group mb8">
-          <label>終了時刻</label>
-          <input type="time" id="sched-end-time">
-        </div>
-      </div>
-      <div style="font-size:11px;color:var(--text-muted)">※ 時刻を空白にするとICS出力されません</div>
+      <div style="font-size:11px;color:var(--text-muted)">※ 時刻は作業枠で管理します</div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-primary" onclick="saveSchedule()">登録</button>
@@ -1453,7 +1443,7 @@ function tasksOnDate(ds) {
 function scheduledOnDate(ds) {
   return S.tasks.filter(t =>
     (t.scheduledDate === ds && !t.recurrence) ||
-    (t.recurrence && t.scheduledTime && isOccurrenceOnDate(t, ds))
+    (t.recurrence && isOccurrenceOnDate(t, ds))
   );
 }
 
@@ -1524,7 +1514,7 @@ function renderWeek(con) {
   html += `<div class="allday-label">終日</div>`;
   days.forEach(day => {
     const ds = dateStr(day);
-    const allDay = S.tasks.filter(t => !t.scheduledTime && (
+    const allDay = S.tasks.filter(t => (
       t.dueDate===ds || (t.scheduledDate===ds && !t.recurrence) ||
       (t.recurrence && isOccurrenceOnDate(t, ds))
     ));
@@ -1545,11 +1535,6 @@ function renderWeek(con) {
     html += `<div class="time-label">${pad(hh)}:00</div>`;
     days.forEach(day => {
       const ds = dateStr(day);
-      const ts = S.tasks.filter(t => t.scheduledTime &&
-        parseInt(t.scheduledTime.split(':')[0])===hh && (
-          (t.scheduledDate===ds && !t.recurrence) ||
-          (t.recurrence && isOccurrenceOnDate(t, ds))
-        ));
       html += `<div class="hour-cell" onclick="openBlockModal(null,'${ds}','${pad(hh)}:00','${pad(Math.min(23,hh+1))}:00')">`;
       // 作業枠チップ（この時間帯を含むブロック）
       S.blocks.filter(b => b.date===ds && parseInt(b.startTime)<=hh && parseInt(b.endTime)>hh)
@@ -1557,12 +1542,6 @@ function renderWeek(con) {
           const bTasks = getBlockTasks(b.id);
           html += `<div class="week-block-chip" onclick="event.stopPropagation();openBlockModal('${b.id}')">${h(b.title||'作業枠')} ${b.startTime}–${b.endTime}${bTasks.length?` (${bTasks.length})`:''}</div>`;
         });
-      // スタンドアロンタスク（この日のblockに紐づいていないもの）
-      const dayBlockIds = S.blocks.filter(b => b.date===ds).map(b => b.id);
-      ts.filter(t => !(t.blockIds||[]).some(bid => dayBlockIds.includes(bid))).forEach(t => {
-        html += `<div class="time-chip ${t.category} ${isTaskDone(t,ds)?'done':''}"
-          onclick="event.stopPropagation();openTaskDetail('${t.id}')">${h(t.title)}${t.scheduledTime?` <span style="opacity:.7">${t.scheduledTime}${t.scheduledEndTime?'–'+t.scheduledEndTime:''}</span>`:''}</div>`;
-      });
       html += `</div>`;
     });
     html += `</div>`;
@@ -1574,52 +1553,16 @@ function renderWeek(con) {
 // ── Day ──
 const HOUR_H = 60; // px per hour
 
-function taskEndMin(t) {
-  if (t.scheduledEndTime) {
-    const [eh, em] = t.scheduledEndTime.split(':').map(Number);
-    return eh * 60 + em;
-  }
-  const [sh, sm] = t.scheduledTime.split(':').map(Number);
-  const scaleMin = { large: 120, medium: 90, small: 60 };
-  return sh * 60 + sm + (scaleMin[t.scale] || 60);
-}
-
-function layoutColumns(tasks) {
-  const sorted = [...tasks].sort((a, b) => {
-    const [ah, am] = a.scheduledTime.split(':').map(Number);
-    const [bh, bm] = b.scheduledTime.split(':').map(Number);
-    return (ah*60+am) - (bh*60+bm);
-  });
-  const colEnds = [];
-  const result = [];
-  sorted.forEach(t => {
-    const [sh, sm] = t.scheduledTime.split(':').map(Number);
-    const startMin = sh * 60 + sm;
-    const endMin = taskEndMin(t);
-    let col = colEnds.findIndex(e => e <= startMin);
-    if (col === -1) { col = colEnds.length; colEnds.push(endMin); }
-    else colEnds[col] = endMin;
-    result.push({ t, col });
-  });
-  const totalCols = colEnds.length || 1;
-  return result.map(r => ({ ...r, totalCols }));
-}
 
 function renderDay(con) {
   const ds = dateStr(S.calDate);
   const allDay = [...new Map(
-    S.tasks.filter(t => !t.scheduledTime && (
+    S.tasks.filter(t => (
       t.dueDate===ds || (t.scheduledDate===ds && !t.recurrence) ||
       (t.recurrence && isOccurrenceOnDate(t, ds))
     ))
            .map(t=>[t.id,t])
   ).values()];
-  const timed = S.tasks.filter(t =>
-    t.scheduledTime && (
-      (t.scheduledDate===ds && !t.recurrence) ||
-      (t.recurrence && isOccurrenceOnDate(t, ds))
-    )
-  );
 
   let html = `<div class="time-view-wrap">`;
 
@@ -1688,44 +1631,15 @@ function renderDay(con) {
     </div>`;
   });
 
-  // 作業枠なし・scheduledTime あり（スタンドアロン）タスク
-  const dayBlockIds = S.blocks.filter(b => b.date === ds).map(b => b.id);
-  const standalone = timed.filter(t => !(t.blockIds||[]).some(bid => dayBlockIds.includes(bid)));
-  layoutColumns(standalone).forEach(({ t, col, totalCols }) => {
-    const [sh, sm] = t.scheduledTime.split(':').map(Number);
-    const startMin = sh * 60 + sm;
-    const endMin   = Math.min(taskEndMin(t), 24*60);
-    const top    = (startMin / 60) * HOUR_H;
-    const height = Math.max(22, ((endMin - startMin) / 60) * HOUR_H);
-    const wPct   = 100 / totalCols;
-    const timeRange = t.scheduledTime + (t.scheduledEndTime ? '–'+t.scheduledEndTime : '');
-    const isDone = isTaskDone(t, ds);
-    const recurBadge = t.recurrence ? `<span style="font-size:9px;opacity:.7">🔁${recurLabel(t)}</span>` : '';
-    const clickAction = t.recurrence
-      ? `toggleCompletion('${t.id}','${ds}');renderCalendar()`
-      : `openScheduleModal('${t.id}')`;
-
-    html += `<div class="day-task-block ${t.category} ${isDone?'done':''}"
-      style="top:${top}px;height:${height}px;left:calc(${col*wPct}% + 3px);width:calc(${wPct}% - 6px)"
-      onclick="event.stopPropagation();${clickAction}"
-      title="${t.recurrence?'クリックで完了切替':'クリックで時刻編集'}">
-      <div class="dtb-title">${h(t.title)} ${recurBadge}</div>
-      <div class="dtb-time">${timeRange}</div>
-      <span class="dtb-detail" onclick="event.stopPropagation();openTaskDetail('${t.id}')" title="タスク詳細">📋</span>
-    </div>`;
-  });
-
   html += `</div>`; // day-task-area
   html += `</div>`; // flex
   html += `</div>`; // time-view-wrap
 
   con.innerHTML = html;
 
-  // Scroll to first block/task or current hour
+  // Scroll to first block or current hour
   const firstBlockHour = dayBlocks.length ? parseInt(dayBlocks[0].startTime) : 99;
-  const firstTaskHour  = standalone.length ? Math.min(...standalone.map(t => parseInt(t.scheduledTime))) : 99;
-  const scrollHour = Math.min(firstBlockHour, firstTaskHour);
-  con.scrollTop = (scrollHour < 99 ? Math.max(0, scrollHour - 1) : Math.max(0, now.getHours() - 1)) * HOUR_H;
+  con.scrollTop = (firstBlockHour < 99 ? Math.max(0, firstBlockHour - 1) : Math.max(0, now.getHours() - 1)) * HOUR_H;
 }
 
 function dayAreaClick(e, ds) {
@@ -1908,7 +1822,7 @@ function openTaskDetail(id) {
     <div class="detail-row"><span class="detail-label">規模</span><span class="badge ${scaleCls}">${SCALE_LABEL[t.scale]}</span></div>
     ${t.theme?`<div class="detail-row"><span class="detail-label">テーマ</span><span class="badge badge-theme">${h(t.theme)}</span></div>`:''}
     ${t.dueDate?`<div class="detail-row"><span class="detail-label">期日</span>${t.dueDate}</div>`:''}
-    ${t.scheduledDate?`<div class="detail-row"><span class="detail-label">作業予定</span>${t.scheduledDate}${t.scheduledTime?' '+t.scheduledTime+(t.scheduledEndTime?' – '+t.scheduledEndTime:''):''}</div>`:''}
+    ${t.scheduledDate?`<div class="detail-row"><span class="detail-label">作業予定</span>${t.scheduledDate}</div>`:''}
     ${goal?`<div class="detail-row"><span class="detail-label">紐づき目標</span><span class="badge badge-goal">🎯#${goal.number} ${h(goal.title)}</span></div>`:''}
     ${t.recurrence?`<div class="detail-row"><span class="detail-label">繰り返し</span><span class="badge badge-recur">🔁${recurLabel(t)}${t.recurrenceEnd?' （〜'+t.recurrenceEnd+'）':''}</span></div>`:''}
     ${(()=>{
@@ -2008,23 +1922,7 @@ function openScheduleModal(id) {
   _schedTaskId = id;
   const t = S.tasks.find(t=>t.id===id);
   document.getElementById('sched-date').value = t.scheduledDate || today();
-  document.getElementById('sched-time').value = t.scheduledTime || '';
-  document.getElementById('sched-end-time').value = t.scheduledEndTime || '';
   document.getElementById('sched-task-group').style.display = 'none';
-  document.getElementById('modal-schedule').classList.add('open');
-}
-
-function openSchedFromCal(ds, time) {
-  _schedTaskId = null;
-  document.getElementById('sched-date').value = ds;
-  document.getElementById('sched-time').value = time;
-  document.getElementById('sched-end-time').value = '';
-  // Build task picker (incomplete tasks)
-  const incomplete = S.tasks.filter(t=>!t.completed);
-  const sel = document.getElementById('sched-task-select');
-  sel.innerHTML = `<option value="">— タスクを選択 —</option>` +
-    incomplete.map(t=>`<option value="${t.id}">${h(t.title)}</option>`).join('');
-  document.getElementById('sched-task-group').style.display = '';
   document.getElementById('modal-schedule').classList.add('open');
 }
 
@@ -2033,22 +1931,11 @@ function toggleRecurEnd(prefix) {
   document.getElementById(`${prefix}-recur-end-group`).style.display = val ? '' : 'none';
 }
 
-function autoFillEndTime() {
-  const start = document.getElementById('sched-time').value;
-  const endEl = document.getElementById('sched-end-time');
-  if (!start || endEl.value) return; // don't overwrite existing end time
-  const [hh, mm] = start.split(':').map(Number);
-  const end = new Date(2000, 0, 1, hh, mm + 60);
-  endEl.value = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
-}
-
 function saveSchedule() {
   const id = _schedTaskId || document.getElementById('sched-task-select').value;
   if (!id) { showToast('タスクを選択してください'); return; }
   updateTask(id, {
-    scheduledDate:    document.getElementById('sched-date').value || null,
-    scheduledTime:    document.getElementById('sched-time').value || null,
-    scheduledEndTime: document.getElementById('sched-end-time').value || null,
+    scheduledDate: document.getElementById('sched-date').value || null,
   });
   closeAllModals();
   renderAll();
@@ -2058,7 +1945,7 @@ function saveSchedule() {
 function clearSchedule() {
   const id = _schedTaskId || document.getElementById('sched-task-select').value;
   if (!id) return;
-  updateTask(id, { scheduledDate: null, scheduledTime: null, scheduledEndTime: null });
+  updateTask(id, { scheduledDate: null });
   closeAllModals();
   renderAll();
   showToast('スケジュールを解除しました');
@@ -2815,34 +2702,6 @@ function exportDayICS() {
     ics += `DTEND;TZID=Asia/Tokyo:${fmtJST(ds, b.endTime)}\r\n`;
     if (desc) ics += `DESCRIPTION:${desc}\r\n`;
     if (b.theme) ics += `CATEGORIES:${b.theme}\r\n`;
-    ics += 'END:VEVENT\r\n';
-    count++;
-  });
-
-  // スタンドアロン（この日のblockに紐づかない・scheduledTime あり）タスク
-  const icsBlockIds = S.blocks.filter(b => b.date === ds).map(b => b.id);
-  const standalones = S.tasks.filter(t => !(t.blockIds||[]).some(bid=>icsBlockIds.includes(bid)) && t.scheduledTime && (
-    (t.scheduledDate===ds && !t.recurrence) ||
-    (t.recurrence && isOccurrenceOnDate(t, ds))
-  ));
-  standalones.forEach(t => {
-    const startFmt = fmtJST(ds, t.scheduledTime);
-    let endTime = t.scheduledEndTime && t.scheduledEndTime > t.scheduledTime ? t.scheduledEndTime : null;
-    if (!endTime) {
-      const [sh, sm] = t.scheduledTime.split(':').map(Number);
-      const totalEnd = sh * 60 + sm + (scaleMin[t.scale] || 60);
-      endTime = `${pad(Math.floor(totalEnd/60) % 24)}:${pad(totalEnd % 60)}`;
-    }
-    const priLabel = PRIORITY_LABEL[t.priority] || '';
-    const catLabel = t.category==='work' ? '仕事' : '個人';
-    let desc = `優先度:${priLabel} / ${catLabel}`;
-    if (t.theme) desc += ` / ${t.theme}`;
-    ics += 'BEGIN:VEVENT\r\n';
-    ics += `SUMMARY:${t.title.replace(/\r?\n/g,'\\n')}\r\n`;
-    ics += `DTSTART;TZID=Asia/Tokyo:${startFmt}\r\n`;
-    ics += `DTEND;TZID=Asia/Tokyo:${fmtJST(ds, endTime)}\r\n`;
-    ics += `DESCRIPTION:${desc}\r\n`;
-    if (t.theme) ics += `CATEGORIES:${t.theme}\r\n`;
     ics += 'END:VEVENT\r\n';
     count++;
   });
