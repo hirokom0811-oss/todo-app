@@ -170,6 +170,7 @@
     .badge-scheduled { background: #dbeafe; color: #1d4ed8; }
     .badge-theme { background: #ede9fe; color: #6d28d9; }
     .badge-recur { background: #fce7f3; color: #9d174d; }
+    .badge-children { background: #d1fae5; color: #065f46; cursor: pointer; }
     .recur-date-list { max-height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; }
     .recur-date-row {
       display: flex; align-items: center; gap: 8px;
@@ -872,8 +873,13 @@
           <input type="date" id="edit-recur-end">
         </div>
       </div>
+      <div id="edit-subtask-section" style="display:none;border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--text)">サブタスク</div>
+        <div id="edit-subtask-list"></div>
+      </div>
     </div>
     <div class="modal-footer">
+      <button class="btn btn-sm" onclick="decomposeTask()">🤖 AI分解</button>
       <button class="btn btn-primary" onclick="saveEditTask()">保存</button>
       <button class="btn" onclick="closeAllModals()">キャンセル</button>
     </div>
@@ -1078,7 +1084,7 @@ function addTask(d) {
     id: uuid(), title: d.title,
     dueDate: d.dueDate || null, scheduledDate: null, scheduledTime: null, scheduledEndTime: null,
     blockIds: [],
-    goalId: d.goalId || null, category: d.category || 'work',
+    goalId: d.goalId || null, parentId: d.parentId || null, category: d.category || 'work',
     priority: d.priority || 'medium', scale: d.scale || 'small',
     theme: d.theme || null, completed: false,
     recurrence: d.recurrence || null, recurrenceEnd: d.recurrenceEnd || null,
@@ -1266,7 +1272,7 @@ const STATUS_LABEL   = { notStarted:'未着手', inProgress:'進行中', done:'�
 function renderTodoList() {
   const { status, category, date } = S.filter;
   const tod = today();
-  let tasks = S.tasks;
+  let tasks = S.tasks.filter(t => !t.parentId);
   if (status === 'active')    tasks = tasks.filter(t => {
     if (t.recurrence && date === 'today') return !isRecurringDone(t.id, tod);
     return !isTaskDone(t);
@@ -1294,8 +1300,9 @@ function renderTodoList() {
     const isDone  = isTaskDone(t);
     const overdue = t.dueDate && t.dueDate < tod && !isDone;
     const goal = t.goalId ? S.goals.find(g => g.id === t.goalId) : null;
-    const scaleCls = t.scale === 'large' ? 'badge-scale-large' : t.scale === 'medium' ? 'badge-scale-medium' : 'badge-scale-small';
-    const priCls = `badge-${t.priority}`;
+    const scaleCls  = t.scale === 'large' ? 'badge-scale-large' : t.scale === 'medium' ? 'badge-scale-medium' : 'badge-scale-small';
+    const priCls    = `badge-${t.priority}`;
+    const children  = S.tasks.filter(c => c.parentId === t.id);
     return `
 <div class="task-item ${isDone?'completed':''} ${overdue?'overdue':''} ${S.highlightId===t.id?'highlighted':''}"
      data-id="${t.id}" onclick="openTaskDetail('${t.id}')">
@@ -1312,6 +1319,7 @@ function renderTodoList() {
       ${t.dueDate?`<span class="badge badge-due ${overdue?'overdue':''}">📅${t.dueDate}</span>`:''}
       ${(t.blockIds||[]).map(bid=>{const blk=getBlockById(bid);return blk?`<span class="badge badge-block">📦${h(blk.title||blk.date+' '+blk.startTime)}</span>`:''}).join('')}
       ${goal?`<span class="badge badge-goal">🎯#${goal.number}</span>`:''}
+      ${children.length?`<span class="badge badge-children" title="子タスクを表示" onclick="event.stopPropagation();openTaskDetail('${t.id}')">▶ ${children.length}件</span>`:''}
     </div>
   </div>
   <div class="task-actions" onclick="event.stopPropagation()">
@@ -1911,7 +1919,25 @@ function openEditModal(id) {
 
   // Store which task we're editing
   document.getElementById('modal-task-edit').dataset.editId = id;
+  renderEditSubtasks(id);
   document.getElementById('modal-task-edit').classList.add('open');
+}
+
+function renderEditSubtasks(parentId) {
+  const children = S.tasks.filter(c => c.parentId === parentId);
+  const section  = document.getElementById('edit-subtask-section');
+  if (!children.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  document.getElementById('edit-subtask-list').innerHTML = children.map(c => {
+    const done = isTaskDone(c);
+    return `
+    <div class="block-task-row" style="padding:7px 2px;border-bottom:1px solid var(--border)">
+      <input type="checkbox" ${done ? 'checked' : ''}
+        onchange="toggleComplete('${c.id}');renderEditSubtasks('${parentId}');renderAll()">
+      <span style="flex:1;font-size:13px;${done ? 'text-decoration:line-through;color:var(--text-muted)' : ''}">${h(c.title)}</span>
+      <button class="btn btn-sm" title="作業予定を登録" onclick="openScheduleModal('${c.id}')">📅</button>
+    </div>`;
+  }).join('');
 }
 
 function saveEditTask() {
@@ -2322,6 +2348,94 @@ function goToTask(id) {
 // ──────────────────────────────────────────────
 //  AI TODO 分解
 // ──────────────────────────────────────────────
+async function decomposeTask() {
+  const title    = document.getElementById('edit-title').value.trim();
+  const category = document.getElementById('edit-category').value;
+  const theme    = document.getElementById('edit-theme').value || '';
+  const dueDate  = document.getElementById('edit-due-date').value || '';
+
+  if (!title) { showToast('タスク名を入力してください'); return; }
+
+  const apiKey = localStorage.getItem('todo_gemini_api_key') || '';
+  if (!apiKey) {
+    showToast('設定から Gemini API キーを登録してください');
+    closeAllModals();
+    openSettings();
+    return;
+  }
+  const model = localStorage.getItem('todo_gemini_model') || 'gemini-2.0-flash';
+
+  document.getElementById('ai-tasks-body').innerHTML =
+    '<div class="travel-generating" style="padding:24px 0">🤖 サブタスクを生成中…</div>';
+  document.getElementById('ai-tasks-add-btn').onclick = null;
+  closeAllModals();
+  document.getElementById('modal-ai-tasks').classList.add('open');
+
+  const themeList = (S.themes[category] || []).join('、');
+  const catLabel  = category === 'work' ? '仕事' : '個人';
+  const prompt = `あなたはタスク管理の専門家です。以下のタスクを達成するための具体的なサブタスクを5〜10件提案してください。
+
+タスク名: ${title}
+カテゴリ: ${catLabel}
+テーマ: ${theme || 'なし'}
+期日: ${dueDate || 'なし'}
+${themeList ? `利用可能なテーマ: ${themeList}` : ''}
+
+必ず以下のJSON形式のみで回答してください（説明文は一切不要）:
+{
+  "tasks": [
+    {
+      "title": "サブタスク名（30文字以内）",
+      "priority": "high | medium | low",
+      "scale": "large | medium | small",
+      "theme": "テーマ名または空文字",
+      "memo": "補足（30文字以内、任意）"
+    }
+  ]
+}
+priority: high=今すぐ必要, medium=通常, low=余裕があれば
+scale: large=2時間以上, medium=1〜2時間, small=1時間未満
+theme は利用可能なテーマから選ぶか空文字。`;
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const res  = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+
+    const raw     = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    let jsonStr   = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const objStart = jsonStr.indexOf('{');
+    if (objStart !== -1) {
+      const lastComma = jsonStr.lastIndexOf('},');
+      if (lastComma !== -1 && !jsonStr.trimEnd().endsWith(']}')) {
+        jsonStr = jsonStr.slice(0, lastComma + 1) + ']}';
+      }
+    }
+    const parsed  = JSON.parse(jsonStr);
+    const aiTasks = parsed.tasks || [];
+    if (!aiTasks.length) throw new Error('提案タスクが0件でした');
+
+    renderAiTaskSuggestions(aiTasks, null);
+    document.getElementById('ai-tasks-add-btn').onclick =
+      () => addSelectedAiTasksFromEdit(aiTasks, category, theme || null);
+
+  } catch (e) {
+    document.getElementById('ai-tasks-body').innerHTML = `
+      <div style="padding:16px">
+        <div style="color:var(--high);margin-bottom:12px">❌ ${h(e.message)}</div>
+        <button class="btn btn-sm btn-primary" onclick="decomposeTask()">🔄 再試行</button>
+      </div>`;
+  }
+}
+
 async function decomposeGoal(goalId) {
   const g = S.goals.find(g => g.id === goalId);
   if (!g) return;
@@ -2472,6 +2586,30 @@ function addSelectedAiTasks(tasks, goalId) {
   showPage('todo');
   renderAll();
   showToast(`✅ ${indices.length}件のタスクをTODOに追加しました`);
+}
+
+function addSelectedAiTasksFromEdit(tasks, category, theme) {
+  const indices  = [...document.querySelectorAll('input[name=ai-task-cb]:checked')].map(cb => parseInt(cb.value));
+  if (!indices.length) { showToast('タスクを1件以上選択してください'); return; }
+
+  const parentId = document.getElementById('modal-task-edit').dataset.editId || null;
+  indices.forEach(i => {
+    const t = tasks[i];
+    if (!t) return;
+    addTask({
+      title:    t.title,
+      category,
+      priority: ['high','medium','low'].includes(t.priority) ? t.priority : 'medium',
+      scale:    ['large','medium','small'].includes(t.scale)  ? t.scale  : 'medium',
+      theme:    t.theme || theme || null,
+      parentId,
+    });
+  });
+
+  closeAllModals();
+  showPage('todo');
+  renderAll();
+  showToast(`✅ ${indices.length}件のサブタスクをTODOに追加しました`);
 }
 
 function openAddGoalModal(number) {
