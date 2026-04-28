@@ -1109,6 +1109,8 @@ function addBlock(d) {
   const b = {
     id: uuid(), title: d.title || '', theme: d.theme || '',
     date: d.date, startTime: d.startTime, endTime: d.endTime,
+    recurrence: d.recurrence || null,
+    recurrenceEnd: d.recurrenceEnd || null,
     createdAt: new Date().toISOString(),
   };
   S.blocks.push(b);
@@ -1167,6 +1169,24 @@ function getBlockTasks(blockId) { return S.tasks.filter(t => (t.blockIds || []).
 function blockLabel(b) {
   if (!b) return '';
   return (b.title ? b.title + ' ' : '') + b.date + ' ' + b.startTime + '–' + b.endTime;
+}
+// 指定日に作業枠が発生するか判定（繰り返し対応）
+function isBlockOnDate(b, ds) {
+  if (!b.recurrence) return b.date === ds;
+  if (ds < b.date) return false;
+  if (b.recurrenceEnd && ds > b.recurrenceEnd) return false;
+  if (b.recurrence === 'daily') return true;
+  if (b.recurrence === 'weekday') {
+    const dow = new Date(ds + 'T12:00:00').getDay();
+    return dow >= 1 && dow <= 5;
+  }
+  if (b.recurrence === 'weekly') {
+    const base   = new Date(b.date + 'T12:00:00');
+    const target = new Date(ds     + 'T12:00:00');
+    const diff   = Math.round((target - base) / 86400000);
+    return diff >= 0 && diff % 7 === 0;
+  }
+  return false;
 }
 
 // ──────────────────────────────────────────────
@@ -1537,7 +1557,7 @@ function renderWeek(con) {
       const ds = dateStr(day);
       html += `<div class="hour-cell" onclick="openBlockModal(null,'${ds}','${pad(hh)}:00','${pad(Math.min(23,hh+1))}:00')">`;
       // 作業枠チップ（この時間帯を含むブロック）
-      S.blocks.filter(b => b.date===ds && parseInt(b.startTime)<=hh && parseInt(b.endTime)>hh)
+      S.blocks.filter(b => isBlockOnDate(b, ds) && parseInt(b.startTime)<=hh && parseInt(b.endTime)>hh)
         .forEach(b => {
           const bTasks = getBlockTasks(b.id);
           html += `<div class="week-block-chip" onclick="event.stopPropagation();openBlockModal('${b.id}')">${h(b.title||'作業枠')} ${b.startTime}–${b.endTime}${bTasks.length?` (${bTasks.length})`:''}</div>`;
@@ -1611,7 +1631,7 @@ function renderDay(con) {
   }
 
   // 作業枠（ブロック）
-  const dayBlocks = S.blocks.filter(b => b.date === ds)
+  const dayBlocks = S.blocks.filter(b => isBlockOnDate(b, ds))
     .sort((a,b) => a.startTime.localeCompare(b.startTime));
   dayBlocks.forEach(b => {
     const [sh, sm] = b.startTime.split(':').map(Number);
@@ -1930,6 +1950,10 @@ function toggleRecurEnd(prefix) {
   const val = document.getElementById(`${prefix}-recur`).value;
   document.getElementById(`${prefix}-recur-end-group`).style.display = val ? '' : 'none';
 }
+function toggleBlockRecurEnd() {
+  const val = document.getElementById('bm-recur').value;
+  document.getElementById('bm-recur-end-group').style.display = val ? '' : 'none';
+}
 
 function saveSchedule() {
   const id = _schedTaskId || document.getElementById('sched-task-select').value;
@@ -1959,7 +1983,9 @@ function openBlockModal(id, prefillDate, prefillStart, prefillEnd) {
   _blockPendingTaskId = null;
   const b = id ? getBlockById(id) : null;
 
-  document.getElementById('block-modal-title').textContent = b ? '作業枠を編集' : '作業枠を追加';
+  document.getElementById('block-modal-title').innerHTML = b
+    ? `作業枠を編集${b.recurrence ? ` <span class="badge badge-recur" style="font-size:11px">🔁${recurLabel({recurrence:b.recurrence})}</span>` : ''}`
+    : '作業枠を追加';
   document.getElementById('block-save-btn').style.display   = '';   // 必ず表示
   document.getElementById('block-delete-btn').style.display = b ? '' : 'none';
 
@@ -1996,6 +2022,22 @@ function openBlockModal(id, prefillDate, prefillStart, prefillEnd) {
       <div class="form-group mb8">
         <label>日付</label>
         <input type="date" id="bm-date" value="${date}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group mb8">
+        <label>繰り返し</label>
+        <select id="bm-recur" onchange="toggleBlockRecurEnd()"
+          style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:13px;font-family:inherit;background:var(--surface)">
+          <option value="" ${!b?.recurrence?'selected':''}>なし</option>
+          <option value="daily" ${b?.recurrence==='daily'?'selected':''}>毎日</option>
+          <option value="weekday" ${b?.recurrence==='weekday'?'selected':''}>毎日(平日)</option>
+          <option value="weekly" ${b?.recurrence==='weekly'?'selected':''}>毎週</option>
+        </select>
+      </div>
+      <div class="form-group mb8" id="bm-recur-end-group" style="display:${b?.recurrence?'':'none'}">
+        <label>終了日</label>
+        <input type="date" id="bm-recur-end" value="${b?.recurrenceEnd||''}">
       </div>
     </div>
     <div class="form-row">
@@ -2051,13 +2093,15 @@ function saveBlock() {
   if (!start) { showToast('開始時刻を入力してください'); return; }
   if (!end)   { showToast('終了時刻を入力してください'); return; }
   if (end <= start) { showToast('終了時刻は開始時刻より後にしてください'); return; }
-  const title = document.getElementById('bm-title').value.trim();
-  const theme = document.getElementById('bm-theme').value.trim();
+  const title         = document.getElementById('bm-title').value.trim();
+  const theme         = document.getElementById('bm-theme').value.trim();
+  const recurrence    = document.getElementById('bm-recur').value || null;
+  const recurrenceEnd = document.getElementById('bm-recur-end').value || null;
   if (_blockEditId) {
-    updateBlock(_blockEditId, { title, theme, date, startTime: start, endTime: end });
+    updateBlock(_blockEditId, { title, theme, date, startTime: start, endTime: end, recurrence, recurrenceEnd });
     showToast('作業枠を更新しました');
   } else {
-    const newId = addBlock({ title, theme, date, startTime: start, endTime: end });
+    const newId = addBlock({ title, theme, date, startTime: start, endTime: end, recurrence, recurrenceEnd });
     if (_blockPendingTaskId) { linkTaskToBlock(_blockPendingTaskId, newId); }
     showToast('作業枠を追加しました');
   }
@@ -2692,7 +2736,7 @@ function exportDayICS() {
   let count = 0;
 
   // 作業枠 → 1枠 = 1イベント（タスク名をDESCRIPTIONに列挙）
-  S.blocks.filter(b => b.date === ds).forEach(b => {
+  S.blocks.filter(b => isBlockOnDate(b, ds)).forEach(b => {
     const bTasks = getBlockTasks(b.id);
     const summary = b.title || '作業枠';
     const desc = bTasks.length ? bTasks.map(t => t.title).join('\\n') : '';
