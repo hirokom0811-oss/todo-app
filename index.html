@@ -342,6 +342,7 @@
     .goal-cell:hover { box-shadow: 0 2px 8px rgba(0,0,0,.12); transform: scale(1.03); }
     .goal-cell.done { background: #d1fae5; border-color: var(--goal-done); }
     .goal-cell.inProgress { background: #fef3c7; border-color: var(--goal-progress); }
+    .goal-cell.planning { background: #e0f2fe; border-color: #38bdf8; }
     .goal-cell.notStarted { background: var(--surface); }
     .goal-cell-num { font-size: 8px; color: var(--text-muted); font-weight: 700; line-height: 1; }
     .goal-cell-title {
@@ -394,6 +395,7 @@
     .goal-list-item:hover { background: #f8fafc; }
     .goal-list-item.done { color: var(--text-muted); text-decoration: line-through; }
     .goal-list-item.inProgress { font-weight: 600; }
+    .goal-list-item.planning { color: #0369a1; }
     .goal-list-num {
       min-width: 26px; font-size: 11px; font-weight: 700;
       color: var(--text-muted); text-align: right;
@@ -407,6 +409,7 @@
     }
     .goal-list-badge.done-b { background: #d1fae5; color: #065f46; }
     .goal-list-badge.prog-b { background: #fef3c7; color: #92400e; }
+    .goal-list-badge.plan-b { background: #e0f2fe; color: #0369a1; }
     .goal-list-badge.ns-b   { background: #f1f5f9; color: var(--text-muted); }
 
     /* ── Work Blocks ── */
@@ -1350,7 +1353,7 @@ function closeAllModals() {
 
 const PRIORITY_LABEL = { high:'高', medium:'中', low:'低' };
 const SCALE_LABEL    = { large:'大', medium:'中', small:'小' };
-const STATUS_LABEL   = { notStarted:'未着手', inProgress:'進行中', done:'達成' };
+const STATUS_LABEL   = { notStarted:'未着手', planning:'計画中', inProgress:'進行中', done:'達成' };
 
 // ──────────────────────────────────────────────
 //  RENDER: TODO LIST
@@ -1778,14 +1781,15 @@ function dayAreaClick(e, ds) {
 //  RENDER: GOALS
 // ──────────────────────────────────────────────
 function renderGoalGrid() {
-  const done   = S.goals.filter(g=>g.status==='done').length;
-  const inProg = S.goals.filter(g=>g.status==='inProgress').length;
-  const total  = S.goals.length;
+  const done     = S.goals.filter(g=>g.status==='done').length;
+  const inProg   = S.goals.filter(g=>g.status==='inProgress').length;
+  const planning = S.goals.filter(g=>g.status==='planning').length;
+  const total    = S.goals.length;
 
   document.getElementById('goal-count').textContent = `${done} / ${total} 達成`;
   document.getElementById('goal-progress-fill').style.width = `${total > 0 ? Math.round(done / total * 100) : 0}%`;
   document.getElementById('goal-stats').textContent =
-    `登録 ${total}件 ／ 達成 ${done}件 ／ 進行中 ${inProg}件 ／ 未着手 ${total-done-inProg}件`;
+    `登録 ${total}件 ／ 達成 ${done}件 ／ 進行中 ${inProg}件 ／ 計画中 ${planning}件 ／ 未着手 ${total-done-inProg-planning}件`;
 
   if (S.goalView === 'list') {
     renderGoalByGroup();
@@ -1826,9 +1830,9 @@ function setGoalView(v) {
 function renderGoalByGroup() {
   const con = document.getElementById('goal-grid');
   con.className = '';
-  const STATUS_ICON  = { notStarted: '○', inProgress: '◐', done: '✓' };
-  const STATUS_LABEL = { notStarted: '未着手', inProgress: '進行中', done: '達成' };
-  const STATUS_BADGE = { notStarted: 'ns-b',  inProgress: 'prog-b',  done: 'done-b' };
+  const STATUS_ICON  = { notStarted: '○', planning: '◎', inProgress: '◐', done: '✓' };
+  const STATUS_LABEL = { notStarted: '未着手', planning: '計画中', inProgress: '進行中', done: '達成' };
+  const STATUS_BADGE = { notStarted: 'ns-b', planning: 'plan-b', inProgress: 'prog-b', done: 'done-b' };
 
   // Group: category → theme → goals[]
   const CAT_ORDER = ['仕事', '個人', 'その他'];
@@ -2423,6 +2427,7 @@ function openGoalDetail(id) {
       <span class="detail-label">ステータス</span>
       <select id="gd-status" style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit">
         <option value="notStarted" ${g.status==='notStarted'?'selected':''}>未着手</option>
+        <option value="planning"   ${g.status==='planning'?'selected':''}>計画中</option>
         <option value="inProgress" ${g.status==='inProgress'?'selected':''}>進行中</option>
         <option value="done"       ${g.status==='done'?'selected':''}>達成</option>
       </select>
@@ -2850,6 +2855,10 @@ function buildSuggestPrompt(goals) {
     .filter(g => g.status === 'notStarted')
     .map(g => `- [${g.number}] ${h(g.title)}（${g.type || '未設定'}）状況：${g.progressNote || 'なし'}`)
     .join('\n');
+  const planningList = goals
+    .filter(g => g.status === 'planning')
+    .map(g => `- [${g.number}] ${h(g.title)}（${g.type || '未設定'}）状況：${g.progressNote || 'なし'}`)
+    .join('\n');
   const inProgress = goals
     .filter(g => g.status === 'inProgress')
     .map(g => `- [${g.number}] ${h(g.title)}（${g.type || '未設定'}）状況：${g.progressNote || 'なし'}`)
@@ -2860,10 +2869,13 @@ function buildSuggestPrompt(goals) {
 今月小さく始められそうなものを3〜5件選んでください。
 
 優先順位ではなく「今の季節・状況で動きやすいか」「次のアクションが明確か」で選んでください。
-まだ着手していない目標を優先し、進行中の目標は補足的に選んでください。
+未着手・計画中の目標を優先し、進行中の目標は補足的に選んでください。
 
 【未着手の目標】（優先して選んでください）
 ${notStarted || '（なし）'}
+
+【計画中の目標】（優先して選んでください）
+${planningList || '（なし）'}
 
 【進行中の目標】（必要なら選んでも構いません）
 ${inProgress || '（なし）'}
@@ -2907,8 +2919,8 @@ async function suggestGoals() {
     if (!parsed.length) throw new Error('提案が0件でした');
 
     const goalMap = new Map(S.goals.map(g => [g.number, g]));
-    const statusLabel = { notStarted: '未着手', inProgress: '進行中', done: '達成' };
-    const statusStyle = { notStarted: 'background:#f1f5f9;color:#64748b', inProgress: 'background:#fef9c3;color:#92400e', done: 'background:#d1fae5;color:#065f46' };
+    const statusLabel = { notStarted: '未着手', planning: '計画中', inProgress: '進行中', done: '達成' };
+    const statusStyle = { notStarted: 'background:#f1f5f9;color:#64748b', planning: 'background:#e0f2fe;color:#0369a1', inProgress: 'background:#fef9c3;color:#92400e', done: 'background:#d1fae5;color:#065f46' };
     const typeBadgeLabel = { achievement: '達成型', habit: '習慣型', explore: '探索型' };
     const typeBadgeStyle = { achievement: 'background:#dbeafe;color:#1d4ed8', habit: 'background:#d1fae5;color:#065f46', explore: 'background:#fed7aa;color:#9a3412' };
     let html = '';
@@ -3276,7 +3288,7 @@ function parseCSV(text) {
 
 function exportGoals() {
   const d = new Date();
-  const statusLabel = { notStarted: '未着手', inProgress: '進行中', done: '達成' };
+  const statusLabel = { notStarted: '未着手', planning: '計画中', inProgress: '進行中', done: '達成' };
   const header = ['番号', 'タイトル', 'カテゴリ', 'ステータス', 'テーマ', 'メモ'];
   const sorted = [...S.goals].sort((a, b) => a.number - b.number);
   const rows   = sorted.map(g => [
@@ -3314,7 +3326,7 @@ document.getElementById('goals-import-file').addEventListener('change', e => {
         const cNum    = col('番号'), cTitle = col('タイトル'), cCat = col('カテゴリ');
         const cStatus = col('ステータス'), cTheme = col('テーマ'), cMemo = col('メモ');
         if (cTitle === -1) throw new Error('「タイトル」列が見つかりません');
-        const statusMap = { '未着手': 'notStarted', '進行中': 'inProgress', '達成': 'done' };
+        const statusMap = { '未着手': 'notStarted', '計画中': 'planning', '進行中': 'inProgress', '達成': 'done' };
         const usedNums  = new Set();
         const imported  = rows.slice(1).filter(r => r[cTitle]?.trim()).map(r => {
           let num = cNum >= 0 ? parseInt(r[cNum]) : NaN;
