@@ -2234,43 +2234,64 @@ function confirmDeleteBlock() {
 function openBlockLink(taskId) {
   _blockPendingTaskId = taskId;
   const t = S.tasks.find(t => t.id === taskId);
-  const linkedIds = t ? (t.blockIds || []) : [];
-
-  // ブロック一覧（日付昇順）
-  const sorted = [...S.blocks].sort((a,b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
 
   document.getElementById('block-modal-title').textContent = '作業枠にリンク';
   document.getElementById('block-delete-btn').style.display = 'none';
   document.getElementById('block-save-btn').style.display = 'none';
   _blockEditId = null;
 
+  const filterDate = t?.scheduledDate || null;
+
   document.getElementById('block-modal-body').innerHTML = `
-    <div style="font-size:13px;margin-bottom:10px">
+    <div style="font-size:13px;margin-bottom:8px">
       <strong>${h(t ? t.title : '')}</strong>
     </div>
-    <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">チェックで複数の作業枠にリンクできます</div>
-    <div style="max-height:240px;overflow-y:auto">
-      ${sorted.map(b => {
-        const bTasks = getBlockTasks(b.id);
-        const isLinked = linkedIds.includes(b.id);
-        return `<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid ${isLinked?'var(--primary)':'var(--border)'};
-          border-radius:6px;margin-bottom:6px;cursor:pointer;background:${isLinked?'#eff6ff':'var(--surface)'};
-          transition:background .15s">
-          <input type="checkbox" ${isLinked?'checked':''} style="width:15px;height:15px;accent-color:var(--primary)"
-            onchange="toggleBlockLink('${taskId}','${b.id}',this.checked)">
-          <div style="flex:1">
-            <div style="font-weight:700;font-size:12px">${h(b.title||'作業枠')}</div>
-            <div style="font-size:11px;color:var(--text-muted)">${b.date} ${b.startTime}–${b.endTime}　タスク${bTasks.length}件</div>
-          </div>
-        </label>`;
-      }).join('') || '<div style="color:var(--text-muted);font-size:12px">作業枠がありません</div>'}
-    </div>
+    ${filterDate ? `
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <button id="blf-all" class="btn btn-sm active" onclick="renderBlockLinkList('${taskId}',null)" style="font-size:11px">すべて</button>
+      <button id="blf-date" class="btn btn-sm" onclick="renderBlockLinkList('${taskId}','${filterDate}')" style="font-size:11px">📅 ${filterDate} のみ</button>
+    </div>` : `<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">チェックで複数の作業枠にリンクできます</div>`}
+    <div id="block-link-list" style="max-height:240px;overflow-y:auto"></div>
     <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;display:flex;gap:8px">
       <button class="btn btn-primary btn-sm" onclick="openNewBlockForTask('${taskId}')">＋ 新しい作業枠を作成</button>
       <button class="btn btn-sm" onclick="closeAllModals();renderAll()">閉じる</button>
     </div>
   `;
+
+  renderBlockLinkList(taskId, null);
   document.getElementById('modal-block').classList.add('open');
+}
+
+function renderBlockLinkList(taskId, filterDate) {
+  const t = S.tasks.find(t => t.id === taskId);
+  const linkedIds = t ? (t.blockIds || []) : [];
+
+  // フィルターボタンの active 状態を切り替え
+  const btnAll  = document.getElementById('blf-all');
+  const btnDate = document.getElementById('blf-date');
+  if (btnAll)  btnAll.classList.toggle('active',  !filterDate);
+  if (btnDate) btnDate.classList.toggle('active', !!filterDate);
+
+  // 絞り込み（繰り返し作業枠も isBlockOnDate で判定）
+  let blocks = [...S.blocks].sort((a,b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+  if (filterDate) blocks = blocks.filter(b => isBlockOnDate(b, filterDate));
+
+  document.getElementById('block-link-list').innerHTML =
+    blocks.map(b => {
+      const bTasks   = getBlockTasks(b.id);
+      const isLinked = linkedIds.includes(b.id);
+      const recurBadge = b.recurrence ? `<span style="font-size:10px;color:var(--primary);margin-left:4px">🔁</span>` : '';
+      return `<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid ${isLinked?'var(--primary)':'var(--border)'};
+        border-radius:6px;margin-bottom:6px;cursor:pointer;background:${isLinked?'#eff6ff':'var(--surface)'};
+        transition:background .15s">
+        <input type="checkbox" ${isLinked?'checked':''} style="width:15px;height:15px;accent-color:var(--primary)"
+          onchange="toggleBlockLink('${taskId}','${b.id}',this.checked)">
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:12px">${h(b.title||'作業枠')}${recurBadge}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${b.date} ${b.startTime}–${b.endTime}　タスク${bTasks.length}件</div>
+        </div>
+      </label>`;
+    }).join('') || '<div style="color:var(--text-muted);font-size:12px;padding:8px 0">作業枠がありません</div>';
 }
 
 // チェックボックス変更でリンク/アンリンク（モーダルを閉じない）
@@ -2283,6 +2304,11 @@ function toggleBlockLink(taskId, blockId, checked) {
     showToast('リンクを解除しました');
   }
   renderAll();
+  // 現在のフィルター状態を保ったままリスト再描画
+  const btnDate = document.getElementById('blf-date');
+  const t = S.tasks.find(t => t.id === taskId);
+  const currentFilter = btnDate?.classList.contains('active') ? (t?.scheduledDate || null) : null;
+  renderBlockLinkList(taskId, currentFilter);
 }
 
 function openNewBlockForTask(taskId) {
