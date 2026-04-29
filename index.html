@@ -698,6 +698,7 @@
           <div class="filter-sep"></div>
           <button class="filter-chip active" data-ft="date" data-fv="all">全期間</button>
           <button class="filter-chip" data-ft="date" data-fv="today">📅 今日</button>
+          <button class="filter-chip" data-ft="date" data-fv="month">📅 今月</button>
         </div>
 
         <div id="task-list" class="task-list"></div>
@@ -1353,6 +1354,7 @@ const STATUS_LABEL   = { notStarted:'未着手', inProgress:'進行中', done:'�
 function renderTodoList() {
   const { status, category, date } = S.filter;
   const tod = today();
+  const thisMonth = tod.slice(0, 7); // "YYYY-MM"
   let tasks = S.tasks.filter(t => !t.parentId);
   if (status === 'active')    tasks = tasks.filter(t => {
     if (t.recurrence && date === 'today') return !isRecurringDone(t.id, tod);
@@ -1365,6 +1367,12 @@ function renderTodoList() {
     if (t.scheduledDate === tod) return true;
     if (isOccurrenceOnDate(t, tod) && !isRecurringDone(t.id, tod)) return true;
     if ((t.blockIds||[]).some(bid => { const b = getBlockById(bid); return b && b.date === tod; })) return true;
+    return false;
+  });
+  if (date === 'month')       tasks = tasks.filter(t => {
+    if (t.dueDate?.startsWith(thisMonth)) return true;
+    if (t.scheduledDate?.startsWith(thisMonth)) return true;
+    if ((t.blockIds||[]).some(bid => { const b = getBlockById(bid); return b && b.date?.startsWith(thisMonth); })) return true;
     return false;
   });
 
