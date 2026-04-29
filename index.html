@@ -2256,17 +2256,17 @@ function openBlockLink(taskId) {
   document.getElementById('block-save-btn').style.display = 'none';
   _blockEditId = null;
 
-  const filterDate = t?.scheduledDate || null;
+  // scheduledDate未設定なら今日をデフォルト基準日に
+  const filterDate = t?.scheduledDate || today();
 
   document.getElementById('block-modal-body').innerHTML = `
     <div style="font-size:13px;margin-bottom:8px">
       <strong>${h(t ? t.title : '')}</strong>
     </div>
-    ${filterDate ? `
     <div style="display:flex;gap:6px;margin-bottom:10px">
-      <button id="blf-all" class="btn btn-sm active" onclick="renderBlockLinkList('${taskId}',null)" style="font-size:11px">すべて</button>
-      <button id="blf-date" class="btn btn-sm" onclick="renderBlockLinkList('${taskId}','${filterDate}')" style="font-size:11px">📅 ${filterDate} のみ</button>
-    </div>` : `<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">チェックで複数の作業枠にリンクできます</div>`}
+      <button id="blf-all" class="btn btn-sm" onclick="renderBlockLinkList('${taskId}',null)" style="font-size:11px">すべて</button>
+      <button id="blf-date" class="btn btn-sm active" onclick="renderBlockLinkList('${taskId}','${filterDate}')" style="font-size:11px">📅 ${filterDate} のみ</button>
+    </div>
     <div id="block-link-list" style="max-height:240px;overflow-y:auto"></div>
     <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;display:flex;gap:8px">
       <button class="btn btn-primary btn-sm" onclick="openNewBlockForTask('${taskId}')">＋ 新しい作業枠を作成</button>
@@ -2274,7 +2274,8 @@ function openBlockLink(taskId) {
     </div>
   `;
 
-  renderBlockLinkList(taskId, null);
+  // デフォルトで日付フィルターON（0件なら自動でall表示）
+  renderBlockLinkList(taskId, filterDate);
   document.getElementById('modal-block').classList.add('open');
 }
 
@@ -2290,9 +2291,25 @@ function renderBlockLinkList(taskId, filterDate) {
 
   // 絞り込み（繰り返し作業枠も isBlockOnDate で判定）
   let blocks = [...S.blocks].sort((a,b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
-  if (filterDate) blocks = blocks.filter(b => isBlockOnDate(b, filterDate));
+  if (filterDate) {
+    const filtered = blocks.filter(b => isBlockOnDate(b, filterDate));
+    // 0件なら自動で「すべて」にフォールバック
+    if (filtered.length === 0) {
+      if (btnAll)  btnAll.classList.add('active');
+      if (btnDate) btnDate.classList.remove('active');
+      // フォールバックメッセージを先頭に追加
+      document.getElementById('block-link-list').innerHTML =
+        `<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;padding:4px 2px">📅 ${filterDate} の作業枠がないため全件表示しています</div>`;
+      // blocksはそのまま（全件）
+    } else {
+      blocks = filtered;
+      document.getElementById('block-link-list').innerHTML = '';
+    }
+  } else {
+    document.getElementById('block-link-list').innerHTML = '';
+  }
 
-  document.getElementById('block-link-list').innerHTML =
+  document.getElementById('block-link-list').innerHTML +=
     blocks.map(b => {
       const bTasks   = getBlockTasks(b.id);
       const isLinked = linkedIds.includes(b.id);
@@ -2323,7 +2340,10 @@ function toggleBlockLink(taskId, blockId, checked) {
   // 現在のフィルター状態を保ったままリスト再描画
   const btnDate = document.getElementById('blf-date');
   const t = S.tasks.find(t => t.id === taskId);
-  const currentFilter = btnDate?.classList.contains('active') ? (t?.scheduledDate || null) : null;
+  // ボタンのテキストから日付を取得（scheduledDate未設定時はtoday()がセットされている）
+  const currentFilter = btnDate?.classList.contains('active')
+    ? (t?.scheduledDate || today())
+    : null;
   renderBlockLinkList(taskId, currentFilter);
 }
 
