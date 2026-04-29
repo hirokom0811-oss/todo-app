@@ -115,6 +115,17 @@
     .form-group label { font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
     .form-title-row { display: flex; gap: 8px; margin-bottom: 8px; }
     .form-title-row input { flex: 1; }
+    /* 詳細トグルボタン：PCでは非表示、モバイルでのみ表示 */
+    .add-detail-toggle { display: none; white-space: nowrap; }
+    /* モバイル時の折りたたみ */
+    #add-task-detail { display: block; }
+    @media (max-width: 799px) {
+      .add-detail-toggle { display: inline-flex; align-items: center; }
+      #add-task-detail { overflow: hidden; }
+      #add-task-detail.collapsed { display: none; }
+      .form-title-row { margin-bottom: 0; }
+      .add-task-form.detail-open .form-title-row { margin-bottom: 8px; }
+    }
     input[type="text"], input[type="date"], input[type="time"], input[type="number"], select, textarea {
       width: 100%; padding: 5px 7px; border: 1px solid var(--border);
       border-radius: 5px; font-size: 12px; font-family: inherit;
@@ -613,62 +624,65 @@
         <form id="add-task-form" class="add-task-form" onsubmit="handleAddTask(event)">
           <div class="form-title-row">
             <input type="text" id="task-title" placeholder="タスク名を入力..." required>
+            <button type="button" class="btn btn-sm add-detail-toggle" id="add-detail-toggle-btn" onclick="toggleAddFormDetail()">詳細 ▼</button>
             <button type="submit" class="btn btn-primary">追加</button>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>期日</label>
-              <input type="date" id="task-due-date">
+          <div id="add-task-detail">
+            <div class="form-row">
+              <div class="form-group">
+                <label>期日</label>
+                <input type="date" id="task-due-date">
+              </div>
+              <div class="form-group">
+                <label>カテゴリ</label>
+                <select id="task-category" onchange="onCategoryChange('task')">
+                  <option value="work">仕事</option>
+                  <option value="personal">個人</option>
+                </select>
+              </div>
             </div>
-            <div class="form-group">
-              <label>カテゴリ</label>
-              <select id="task-category" onchange="onCategoryChange('task')">
-                <option value="work">仕事</option>
-                <option value="personal">個人</option>
-              </select>
+            <div class="form-row">
+              <div class="form-group">
+                <label>優先度</label>
+                <select id="task-priority">
+                  <option value="high">高</option>
+                  <option value="medium" selected>中</option>
+                  <option value="low">低</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>規模</label>
+                <select id="task-scale">
+                  <option value="large">大（2h以上）</option>
+                  <option value="medium">中（1〜2h）</option>
+                  <option value="small" selected>小（1h未満）</option>
+                </select>
+              </div>
             </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>優先度</label>
-              <select id="task-priority">
-                <option value="high">高</option>
-                <option value="medium" selected>中</option>
-                <option value="low">低</option>
-              </select>
+            <div class="form-row">
+              <div class="form-group" id="task-theme-group">
+                <label>テーマ（仕事）</label>
+                <select id="task-theme"></select>
+              </div>
+              <div class="form-group">
+                <label>紐づき目標</label>
+                <select id="task-goal"></select>
+              </div>
             </div>
-            <div class="form-group">
-              <label>規模</label>
-              <select id="task-scale">
-                <option value="large">大（2h以上）</option>
-                <option value="medium">中（1〜2h）</option>
-                <option value="small" selected>小（1h未満）</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group" id="task-theme-group">
-              <label>テーマ（仕事）</label>
-              <select id="task-theme"></select>
-            </div>
-            <div class="form-group">
-              <label>紐づき目標</label>
-              <select id="task-goal"></select>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>繰り返し</label>
-              <select id="task-recur" onchange="toggleRecurEnd('task')">
-                <option value="">なし</option>
-                <option value="daily">毎日</option>
-                <option value="weekday">毎日（平日）</option>
-                <option value="weekly">毎週</option>
-              </select>
-            </div>
-            <div class="form-group" id="task-recur-end-group" style="display:none">
-              <label>繰り返し終了日</label>
-              <input type="date" id="task-recur-end">
+            <div class="form-row">
+              <div class="form-group">
+                <label>繰り返し</label>
+                <select id="task-recur" onchange="toggleRecurEnd('task')">
+                  <option value="">なし</option>
+                  <option value="daily">毎日</option>
+                  <option value="weekday">毎日（平日）</option>
+                  <option value="weekly">毎週</option>
+                </select>
+              </div>
+              <div class="form-group" id="task-recur-end-group" style="display:none">
+                <label>繰り返し終了日</label>
+                <input type="date" id="task-recur-end">
+              </div>
             </div>
           </div>
         </form>
@@ -3641,6 +3655,32 @@ function switchMobilePanel(panel) {
 // ──────────────────────────────────────────────
 //  FORM: ADD TASK
 // ──────────────────────────────────────────────
+function toggleAddFormDetail() {
+  // 800px以上のPCでは何もしない
+  if (window.innerWidth >= 800) return;
+  const detail = document.getElementById('add-task-detail');
+  const btn    = document.getElementById('add-detail-toggle-btn');
+  const form   = document.getElementById('add-task-form');
+  const isOpen = !detail.classList.contains('collapsed');
+  if (isOpen) {
+    detail.classList.add('collapsed');
+    btn.textContent = '詳細 ▼';
+    form.classList.remove('detail-open');
+  } else {
+    detail.classList.remove('collapsed');
+    btn.textContent = '詳細 ▲';
+    form.classList.add('detail-open');
+  }
+}
+
+// 起動時にモバイルでは折りたたみ状態にする
+function initAddFormDetail() {
+  if (window.innerWidth < 800) {
+    const detail = document.getElementById('add-task-detail');
+    if (detail) detail.classList.add('collapsed');
+  }
+}
+
 function handleAddTask(e) {
   e.preventDefault();
   const title = document.getElementById('task-title').value.trim();
@@ -3691,6 +3731,7 @@ function init() {
   buildGoalSelect('task-goal', '');
   document.getElementById('travel-date').value = today();
   renderAll();
+  initAddFormDetail();
 }
 
 init();
