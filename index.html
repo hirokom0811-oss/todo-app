@@ -3037,6 +3037,7 @@ async function gistPush() {
   const content = JSON.stringify({
     tasks: S.tasks, goals: S.goals, blocks: S.blocks,
     completions: S.completions, themes: S.themes,
+    blockTemplates: S.blockTemplates,
   }, null, 2);
 
   const payload = {
@@ -3082,12 +3083,13 @@ async function gistPull() {
     if (!raw) throw new Error('ファイルが見つかりません');
     const d = JSON.parse(raw);
     if (!Array.isArray(d.tasks)) throw new Error('データ形式が不正です');
-    if (d.tasks)       S.tasks       = d.tasks;
-    if (d.goals)       S.goals       = d.goals;
-    if (d.blocks)      S.blocks      = d.blocks;
-    if (d.completions) S.completions = d.completions;
-    if (d.themes)      S.themes      = d.themes;
-    saveTasks(); saveGoals(); saveBlocks(); saveCompletions(); saveThemes();
+    if (d.tasks)          S.tasks          = d.tasks;
+    if (d.goals)          S.goals          = d.goals;
+    if (d.blocks)         S.blocks         = d.blocks;
+    if (d.completions)    S.completions    = d.completions;
+    if (d.themes)         S.themes         = d.themes;
+    if (d.blockTemplates) S.blockTemplates = d.blockTemplates;
+    saveTasks(); saveGoals(); saveBlocks(); saveCompletions(); saveThemes(); saveBlockTemplates();
     renderAll();
     showToast('☁️ クラウドから読み込みました');
   } catch (e) {
