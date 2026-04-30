@@ -167,6 +167,7 @@
       padding: 1px 5px; border-radius: 4px; font-size: 10px;
       font-weight: 500; white-space: nowrap; line-height: 1.4;
     }
+    .badge-sm { padding: 1px 4px; font-size: 9px; }
     .badge-work { background: var(--work-light); color: var(--work); }
     .badge-personal { background: var(--personal-light); color: var(--personal); }
     .badge-high { background: #fee2e2; color: var(--high); }
@@ -358,6 +359,25 @@
     .goal-type-badge.achievement { background: #dbeafe; color: #1d4ed8; }
     .goal-type-badge.habit       { background: #d1fae5; color: #065f46; }
     .goal-type-badge.explore     { background: #fed7aa; color: #9a3412; }
+    /* ── Project Page ── */
+    .project-page { padding: 12px; max-width: 800px; margin: 0 auto; }
+    .project-page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+    .project-page-header h2 { font-size: 16px; font-weight: 700; }
+    .project-filter-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+    .project-filter-btn { padding: 3px 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); font-size: 12px; cursor: pointer; font-family: inherit; color: var(--text-muted); transition: all .15s; }
+    .project-filter-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .project-sort-row { display: flex; gap: 6px; align-items: center; margin-bottom: 12px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap; }
+    .project-sort-btn { padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); font-size: 11px; cursor: pointer; font-family: inherit; color: var(--text-muted); }
+    .project-sort-btn.active { background: #e0f2fe; color: #0369a1; border-color: #7dd3fc; }
+    .project-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px; box-shadow: var(--shadow); }
+    .project-card-header { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+    .project-card-title { font-weight: 600; font-size: 14px; flex: 1; line-height: 1.4; }
+    .project-card-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .project-card-meta .overdue { color: var(--high); font-weight: 600; }
+    .project-card-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .badge-proj-active  { background: #dbeafe; color: #1d4ed8; }
+    .badge-proj-waiting { background: #fef3c7; color: #d97706; }
+    .badge-proj-done    { background: #d1fae5; color: #065f46; }
     /* ── Goal List View ── */
     .goal-view-toggle { display: flex; gap: 6px; }
     .goal-view-toggle .btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
@@ -601,6 +621,7 @@
   <nav class="nav-tabs">
     <button class="nav-tab active" data-page="todo" onclick="showPage('todo')">📝 TODO</button>
     <button class="nav-tab" data-page="goals" onclick="showPage('goals')">🎯 やること100</button>
+    <button class="nav-tab" data-page="projects" onclick="showPage('projects')">📁 プロジェクト</button>
     <button class="nav-tab" data-page="travel" onclick="showPage('travel')">🗺️ 旅モード</button>
   </nav>
   <div class="header-actions">
@@ -833,6 +854,31 @@
     </div>
   </div>
 
+  <!-- ── Projects Page ── -->
+  <div id="page-projects" class="page">
+    <div class="project-page">
+      <div class="project-page-header">
+        <h2>📁 プロジェクト</h2>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick="suggestProjects()">🤖 今週注力を提案</button>
+          <button class="btn btn-primary btn-sm" onclick="openProjectModal(null)">＋ 追加</button>
+        </div>
+      </div>
+      <div class="project-filter-row" id="project-filter-row">
+        <button class="project-filter-btn active" data-filter="all"     onclick="setProjectFilter('all')">すべて</button>
+        <button class="project-filter-btn"        data-filter="active"  onclick="setProjectFilter('active')">進行中</button>
+        <button class="project-filter-btn"        data-filter="waiting" onclick="setProjectFilter('waiting')">待機中</button>
+        <button class="project-filter-btn"        data-filter="done"    onclick="setProjectFilter('done')">完了</button>
+      </div>
+      <div class="project-sort-row">
+        <span>並び替え：</span>
+        <button class="project-sort-btn active" id="proj-sort-priority" onclick="setProjectSort('priority')">優先度 ▼</button>
+        <button class="project-sort-btn"        id="proj-sort-due"      onclick="setProjectSort('due')">期日 ▼</button>
+      </div>
+      <div id="project-list"></div>
+    </div>
+  </div>
+
 </main>
 
 <!-- ════════════════ MODALS ════════════════ -->
@@ -845,6 +891,72 @@
       <button class="btn btn-sm" onclick="document.getElementById('modal-spot-detail').style.display='none'">✕</button>
     </div>
     <div id="spot-detail-body" style="padding:4px 0 8px"></div>
+  </div>
+</div>
+
+<!-- Project Edit -->
+<div id="modal-project-edit" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <span id="project-modal-title" class="modal-title">プロジェクトを追加</span>
+      <button class="modal-close" onclick="closeAllModals()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group mb8">
+        <label>タイトル（必須）</label>
+        <input type="text" id="proj-title" placeholder="プロジェクト名">
+      </div>
+      <div class="form-row">
+        <div class="form-group mb8">
+          <label>テーマ（仕事）</label>
+          <select id="proj-theme"></select>
+        </div>
+        <div class="form-group mb8">
+          <label>優先度</label>
+          <select id="proj-priority">
+            <option value="high">高</option>
+            <option value="medium" selected>中</option>
+            <option value="low">低</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group mb8">
+          <label>ステータス</label>
+          <select id="proj-status">
+            <option value="active">進行中</option>
+            <option value="waiting">待機中</option>
+            <option value="done">完了</option>
+          </select>
+        </div>
+        <div class="form-group mb8">
+          <label>期日</label>
+          <input type="date" id="proj-due-date">
+        </div>
+      </div>
+      <div class="form-group mb8">
+        <label>メモ</label>
+        <textarea id="proj-memo" rows="3" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px;resize:vertical"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveProject()">保存</button>
+      <button class="btn" onclick="closeAllModals()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- Project Suggest -->
+<div id="modal-project-suggest" class="modal-overlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <span class="modal-title">🤖 今週注力するプロジェクト</span>
+      <button class="modal-close" onclick="closeAllModals()">×</button>
+    </div>
+    <div id="project-suggest-body" class="modal-body" style="min-height:80px"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">閉じる</button>
+    </div>
   </div>
 </div>
 
@@ -1137,7 +1249,10 @@ const S = {
   blockTemplates: [],   // テンプレート [{id, title, startTime, endTime, theme}]
   completions: [], // [{taskId, date}] — 繰り返しタスクの日付別完了ログ
   themes: { work: ['設備計画','導入','活用','人づくり','コミュ・雑務'], personal: [] },
+  projects: [],         // Project[]
   filter: { status: 'all', category: 'all', date: 'all' },
+  projectFilter: 'all', // 'all' | 'active' | 'waiting' | 'done'
+  projectSort: 'priority', // 'priority' | 'due'
   calView: 'day',
   calDate: new Date(),
   highlightId: null,
@@ -1160,6 +1275,7 @@ function loadAll() {
   const th = localStorage.getItem('todo_themes');
   if (th) S.themes = JSON.parse(th);
   S.blockTemplates = JSON.parse(localStorage.getItem('todo_block_templates') || '[]');
+  S.projects       = JSON.parse(localStorage.getItem('todo_projects')        || '[]');
   // 旧データ移行: blockId (単数) → blockIds (配列)
   S.tasks.forEach(t => {
     if (!Array.isArray(t.blockIds)) {
@@ -1227,6 +1343,9 @@ const saveBlocks      = () => localStorage.setItem('todo_blocks',      JSON.stri
 const saveThemes      = () => localStorage.setItem('todo_themes',      JSON.stringify(S.themes));
 const saveCompletions     = () => localStorage.setItem('todo_completions',     JSON.stringify(S.completions));
 const saveBlockTemplates  = () => localStorage.setItem('todo_block_templates', JSON.stringify(S.blockTemplates));
+const saveProjects        = () => localStorage.setItem('todo_projects',        JSON.stringify(S.projects));
+
+let _projectEditId = null; // null = 新規, 文字列 = 編集中プロジェクトID
 
 // ──────────────────────────────────────────────
 //  TASK CRUD
@@ -1376,6 +1495,49 @@ function deleteGoal(id) {
 function nextGoalNum() {
   const used = new Set(S.goals.map(g => g.number));
   for (let i = 1; ; i++) { if (!used.has(i)) return i; }
+}
+
+// ──────────────────────────────────────────────
+//  PROJECT CRUD
+// ──────────────────────────────────────────────
+function addProject(d) {
+  const p = {
+    id: uuid(),
+    title: d.title,
+    theme: d.theme || null,
+    status: d.status || 'active',
+    priority: d.priority || 'medium',
+    dueDate: d.dueDate || null,
+    memo: d.memo || '',
+    createdAt: new Date().toISOString(),
+    doneAt: null,
+  };
+  S.projects.unshift(p);
+  saveProjects();
+  return p.id;
+}
+
+function updateProject(id, data) {
+  const p = S.projects.find(p => p.id === id);
+  if (!p) return;
+  Object.assign(p, data);
+  if (data.status === 'done' && !p.doneAt) p.doneAt = new Date().toISOString();
+  if (data.status && data.status !== 'done') p.doneAt = null;
+  saveProjects();
+}
+
+function deleteProject(id) {
+  S.projects = S.projects.filter(p => p.id !== id);
+  saveProjects();
+  // フェーズ2でTaskのprojectIdをnullに戻す処理を追加
+}
+
+function getProjectById(id) {
+  return S.projects.find(p => p.id === id);
+}
+
+function getProjectTasks(projectId) {
+  return S.tasks.filter(t => t.projectId === projectId && !t.parentId);
 }
 
 // ──────────────────────────────────────────────
@@ -1962,6 +2124,134 @@ function renderGoalByGroup() {
 }
 
 // ──────────────────────────────────────────────
+//  PROJECT PAGE RENDER
+// ──────────────────────────────────────────────
+const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
+const PRIORITY_LABEL = { high: '高', medium: '中', low: '低' };
+const PROJ_STATUS_LABEL = { active: '進行中', waiting: '待機中', done: '完了' };
+
+function setProjectFilter(f) {
+  S.projectFilter = f;
+  document.querySelectorAll('.project-filter-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.filter === f);
+  });
+  renderProjectList();
+}
+
+function setProjectSort(s) {
+  S.projectSort = s;
+  document.getElementById('proj-sort-priority').classList.toggle('active', s === 'priority');
+  document.getElementById('proj-sort-due').classList.toggle('active', s === 'due');
+  renderProjectList();
+}
+
+function renderProjectList() {
+  const con = document.getElementById('project-list');
+  if (!con) return;
+
+  let list = S.projects.filter(p => {
+    if (S.projectFilter === 'all') return true;
+    return p.status === S.projectFilter;
+  });
+
+  if (S.projectSort === 'priority') {
+    list = list.slice().sort((a, b) => {
+      const pd = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+      if (pd !== 0) return pd;
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return a.dueDate.localeCompare(b.dueDate);
+    });
+  } else {
+    list = list.slice().sort((a, b) => {
+      if (!a.dueDate && !b.dueDate) return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return a.dueDate.localeCompare(b.dueDate);
+    });
+  }
+
+  if (!list.length) {
+    con.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px">プロジェクトがありません</div>`;
+    return;
+  }
+
+  const tod = today();
+  con.innerHTML = list.map(p => {
+    const priClass = p.priority === 'high' ? 'badge-high' : p.priority === 'low' ? 'badge-low' : 'badge-medium';
+    const stClass  = p.status === 'active' ? 'badge-proj-active' : p.status === 'done' ? 'badge-proj-done' : 'badge-proj-waiting';
+    const dueTxt   = p.dueDate
+      ? `<span class="${p.dueDate < tod ? 'overdue' : ''}">期日：${p.dueDate}</span>`
+      : `<span>期日：未設定</span>`;
+    const taskCount = getProjectTasks(p.id).length;
+    const memoSnip  = p.memo ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;white-space:pre-wrap;word-break:break-all">${h(p.memo.slice(0,80))}${p.memo.length>80?'…':''}</div>` : '';
+    return `<div class="project-card">
+      <div class="project-card-header">
+        <span class="badge badge-sm ${priClass}" style="margin-top:2px">${PRIORITY_LABEL[p.priority] || p.priority}</span>
+        <span class="project-card-title">${h(p.title)}</span>
+        <span class="badge ${stClass}">${PROJ_STATUS_LABEL[p.status] || p.status}</span>
+      </div>
+      <div class="project-card-meta">
+        ${p.theme ? `<span>テーマ：${h(p.theme)}</span>` : ''}
+        ${dueTxt}
+        <span>タスク：${taskCount}件</span>
+      </div>
+      ${memoSnip}
+      <div class="project-card-actions">
+        <button class="btn btn-sm" onclick="decomposeProject('${p.id}')">🤖 AI分解</button>
+        <button class="btn btn-sm" onclick="openProjectModal('${p.id}')">編集</button>
+        <button class="btn btn-sm" style="color:var(--high)" onclick="confirmDeleteProject('${p.id}')">削除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// プロジェクト追加・編集モーダルを開く
+function openProjectModal(id) {
+  _projectEditId = id;
+  const p = id ? getProjectById(id) : null;
+  document.getElementById('project-modal-title').textContent = p ? 'プロジェクトを編集' : 'プロジェクトを追加';
+  document.getElementById('proj-title').value    = p ? p.title : '';
+  document.getElementById('proj-priority').value = p ? (p.priority || 'medium') : 'medium';
+  document.getElementById('proj-status').value   = p ? (p.status || 'active') : 'active';
+  document.getElementById('proj-due-date').value = p ? (p.dueDate || '') : '';
+  document.getElementById('proj-memo').value     = p ? (p.memo || '') : '';
+  buildThemeSelect('proj-theme', 'work', p ? (p.theme || '') : '');
+  document.getElementById('modal-project-edit').classList.add('open');
+}
+
+function saveProject() {
+  const title = document.getElementById('proj-title').value.trim();
+  if (!title) { showToast('タイトルを入力してください'); return; }
+  const data = {
+    title,
+    theme:    document.getElementById('proj-theme').value    || null,
+    priority: document.getElementById('proj-priority').value,
+    status:   document.getElementById('proj-status').value,
+    dueDate:  document.getElementById('proj-due-date').value || null,
+    memo:     document.getElementById('proj-memo').value.trim(),
+  };
+  if (_projectEditId) {
+    updateProject(_projectEditId, data);
+  } else {
+    addProject(data);
+  }
+  closeAllModals();
+  renderProjectList();
+  showToast(_projectEditId ? 'プロジェクトを更新しました' : 'プロジェクトを追加しました');
+}
+
+function confirmDeleteProject(id) {
+  const p = getProjectById(id);
+  if (!p) return;
+  if (!confirm(`「${p.title}」を削除しますか？`)) return;
+  deleteProject(id);
+  renderProjectList();
+  showToast('プロジェクトを削除しました');
+}
+
+// ──────────────────────────────────────────────
 //  RENDER ALL
 // ──────────────────────────────────────────────
 function renderAll() {
@@ -1969,6 +2259,7 @@ function renderAll() {
   renderCalendar();
   renderGoalGrid();
   refreshGoalSelects();
+  if (S.page === 'projects') renderProjectList();
 }
 
 // ──────────────────────────────────────────────
@@ -3016,6 +3307,160 @@ async function suggestGoals() {
 }
 
 // ──────────────────────────────────────────────
+//  PROJECT AI FUNCTIONS
+// ──────────────────────────────────────────────
+async function decomposeProject(projectId) {
+  const p = getProjectById(projectId);
+  if (!p) return;
+
+  const apiKey = localStorage.getItem('todo_gemini_api_key') || '';
+  if (!apiKey) { alert('設定からGemini APIキーを入力してください'); return; }
+
+  document.getElementById('ai-tasks-body').innerHTML =
+    '<div class="travel-generating" style="padding:24px 0;text-align:center">🤖 タスクを生成中…</div>';
+  document.getElementById('ai-tasks-add-btn').onclick = null;
+  closeAllModals();
+  document.getElementById('modal-ai-tasks').classList.add('open');
+
+  const prompt = `仕事のプロジェクトを完了するために必要なタスクを洗い出してください。
+
+プロジェクト名：${p.title}
+テーマ：${p.theme || 'なし'}
+期日：${p.dueDate || '未設定'}
+優先度：${PRIORITY_LABEL[p.priority] || p.priority}
+メモ・背景：${p.memo || 'なし'}
+
+以下の条件でタスクを5〜10件提案してください：
+- 期日から逆算して順序を考慮すること
+- 優先度・規模も設定すること
+- 仕事のタスクとして具体的なアクションにすること
+
+JSON形式で返してください（説明文は不要）：
+[{"title":"タスク名","priority":"high|medium|low","scale":"large|medium|small"}]`;
+
+  try {
+    const model    = localStorage.getItem('todo_gemini_model') || 'gemini-2.0-flash';
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7 } }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    const text  = data.candidates[0].content.parts[0].text;
+    let clean   = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    // 配列の開始を探す
+    const arrStart = clean.indexOf('[');
+    if (arrStart > 0) clean = clean.slice(arrStart);
+    const aiTasks = JSON.parse(clean);
+    if (!aiTasks.length) throw new Error('提案が0件でした');
+    renderAiTaskSuggestions(aiTasks, null);
+    document.getElementById('ai-tasks-add-btn').onclick = () => addSelectedAiTasksForProject(aiTasks, p);
+  } catch (e) {
+    document.getElementById('ai-tasks-body').innerHTML =
+      `<div style="padding:16px"><div style="color:var(--high);margin-bottom:12px">❌ ${h(e.message)}</div>
+       <button class="btn btn-sm btn-primary" onclick="closeAllModals();decomposeProject('${projectId}')">🔄 再試行</button></div>`;
+  }
+}
+
+function addSelectedAiTasksForProject(tasks, project) {
+  const indices = [...document.querySelectorAll('input[name=ai-task-cb]:checked')].map(cb => parseInt(cb.value));
+  if (!indices.length) { showToast('タスクを1件以上選択してください'); return; }
+  indices.forEach(i => {
+    const t = tasks[i];
+    if (!t) return;
+    addTask({
+      title:    t.title,
+      category: 'work',
+      priority: ['high','medium','low'].includes(t.priority) ? t.priority : 'medium',
+      scale:    ['large','medium','small'].includes(t.scale)  ? t.scale   : 'medium',
+      theme:    project.theme || null,
+    });
+  });
+  closeAllModals();
+  showPage('todo');
+  renderAll();
+  showToast(`✅ ${indices.length}件のタスクをTODOに追加しました`);
+}
+
+async function suggestProjects() {
+  const apiKey = localStorage.getItem('todo_gemini_api_key') || '';
+  if (!apiKey) { alert('設定からGemini APIキーを入力してください'); return; }
+
+  const activeProjects = S.projects.filter(p => p.status !== 'done');
+  if (!activeProjects.length) { showToast('進行中・待機中のプロジェクトがありません'); return; }
+
+  document.getElementById('project-suggest-body').innerHTML =
+    '<div class="travel-generating" style="padding:24px 0;text-align:center">🤖 AIが分析中…</div>';
+  document.getElementById('modal-project-suggest').classList.add('open');
+
+  try {
+    const tod      = today();
+    const weekEnd  = new Date(new Date().getTime() + 7 * 86400000);
+    const weekEndStr = weekEnd.toISOString().slice(0, 10);
+    const model    = localStorage.getItem('todo_gemini_model') || 'gemini-2.0-flash';
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const list = activeProjects.map(p => {
+      const tasks = getProjectTasks(p.id);
+      const done  = tasks.filter(t => t.completed).length;
+      return `- [${PRIORITY_LABEL[p.priority] || p.priority}] ${p.title}（id:${p.id}）（${PROJ_STATUS_LABEL[p.status]}）期日：${p.dueDate || '未設定'} タスク：${done}/${tasks.length}件完了`;
+    }).join('\n');
+
+    const prompt = `今週（〜${weekEndStr}）注力すべき仕事プロジェクトを提案してください。
+
+【プロジェクト一覧】
+${list}
+
+判断軸：
+- 期日が近いものを優先
+- 優先度が高いものを優先
+- タスク完了率が低いものを優先（着手できていない）
+
+上位3件を選び、理由を添えてJSON形式で返してください（説明文は不要）：
+[{"id":"プロジェクトID","reason":"選んだ理由を1〜2文で"}]`;
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7 } }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    const text  = data.candidates[0].content.parts[0].text;
+    let clean   = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const arrStart = clean.indexOf('[');
+    if (arrStart > 0) clean = clean.slice(arrStart);
+    const parsed = JSON.parse(clean);
+    if (!parsed.length) throw new Error('提案が0件でした');
+
+    let html = '';
+    parsed.forEach((item, idx) => {
+      const p = getProjectById(item.id);
+      if (!p) return;
+      const priClass = p.priority === 'high' ? 'badge-high' : p.priority === 'low' ? 'badge-low' : 'badge-medium';
+      const dueTxt   = p.dueDate
+        ? `期日：${p.dueDate}（残${Math.ceil((new Date(p.dueDate)-new Date(tod))/86400000)}日）`
+        : '期日：未設定';
+      html += `<div style="margin-bottom:14px;padding-bottom:14px;${idx < parsed.length - 1 ? 'border-bottom:1px solid var(--border)' : ''}">
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px;flex-wrap:wrap">
+          <span class="badge ${priClass}">${PRIORITY_LABEL[p.priority]}</span>
+          <span style="font-weight:600;font-size:13px">${idx+1}. ${h(p.title)}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${dueTxt}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">→ ${h(item.reason)}</div>
+        <button class="btn btn-sm btn-primary" onclick="closeAllModals();decomposeProject('${p.id}')">🤖 AI分解する</button>
+      </div>`;
+    });
+    document.getElementById('project-suggest-body').innerHTML = html || '<div style="padding:16px;color:var(--text-muted)">提案が見つかりませんでした</div>';
+  } catch (e) {
+    document.getElementById('project-suggest-body').innerHTML =
+      `<div style="padding:16px;color:var(--high)">❌ ${h(e.message)}</div>`;
+  }
+}
+
+// ──────────────────────────────────────────────
 //  SETTINGS
 // ──────────────────────────────────────────────
 function openSettings() {
@@ -3176,7 +3621,7 @@ async function gistPush() {
   const content = JSON.stringify({
     tasks: S.tasks, goals: S.goals, blocks: S.blocks,
     completions: S.completions, themes: S.themes,
-    blockTemplates: S.blockTemplates,
+    blockTemplates: S.blockTemplates, projects: S.projects,
   }, null, 2);
 
   const payload = {
@@ -3230,7 +3675,8 @@ async function gistPull() {
     if (d.completions)    S.completions    = d.completions;
     if (d.themes)         S.themes         = d.themes;
     if (d.blockTemplates) S.blockTemplates = d.blockTemplates;
-    saveTasks(); saveGoals(); saveBlocks(); saveCompletions(); saveThemes(); saveBlockTemplates();
+    if (d.projects)       S.projects       = d.projects;
+    saveTasks(); saveGoals(); saveBlocks(); saveCompletions(); saveThemes(); saveBlockTemplates(); saveProjects();
     localStorage.setItem('todo_last_saved', new Date().toISOString());
     hideSyncBanner();
     renderAll();
@@ -3288,7 +3734,7 @@ function exportDayICS() {
 // ──────────────────────────────────────────────
 function exportJSON() {
   const d = new Date();
-  const data = { tasks: S.tasks, goals: S.goals, blocks: S.blocks, completions: S.completions, themes: S.themes, exportedAt: d.toISOString() };
+  const data = { tasks: S.tasks, goals: S.goals, blocks: S.blocks, completions: S.completions, themes: S.themes, projects: S.projects, exportedAt: d.toISOString() };
   const json = JSON.stringify(data, null, 2);
   const filename = `todo_backup_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}.json`;
 
@@ -3444,8 +3890,9 @@ document.getElementById('import-file').addEventListener('change', e => {
       S.goals       = data.goals       || [];
       S.blocks      = data.blocks      || [];
       S.completions = data.completions || [];
+      S.projects    = data.projects    || [];
       if (data.themes) S.themes = data.themes;
-      saveTasks(); saveGoals(); saveBlocks(); saveCompletions(); saveThemes();
+      saveTasks(); saveGoals(); saveBlocks(); saveCompletions(); saveThemes(); saveProjects();
       renderAll();
       showToast('インポートしました');
     } catch { alert('不正なJSONファイルです'); }
@@ -3775,8 +4222,9 @@ function showPage(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(`page-${page}`).classList.add('active');
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.page===page));
-  if (page==='goals') renderGoalGrid();
-  if (page==='todo')  { renderTodoList(); renderCalendar(); }
+  if (page==='goals')    renderGoalGrid();
+  if (page==='todo')     { renderTodoList(); renderCalendar(); }
+  if (page==='projects') renderProjectList();
 }
 
 // モバイル用パネル切替（タスク ↔ スケジューラー）
