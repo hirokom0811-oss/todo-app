@@ -1399,6 +1399,13 @@ function checkTask(id) {
   if (t.recurrence) toggleCompletion(id, today());
   else              toggleComplete(id);
 }
+// 作業枠モーダル内のチェックボックス専用（作業枠の日付を使う）
+function checkTaskOnDate(id, date) {
+  const t = S.tasks.find(t => t.id === id);
+  if (!t) return;
+  if (t.recurrence) toggleCompletion(id, date);
+  else              toggleComplete(id);
+}
 
 // ──────────────────────────────────────────────
 //  BLOCK CRUD
@@ -2595,7 +2602,7 @@ function openBlockModal(id, prefillDate, prefillStart, prefillEnd) {
       ${bTasks.length ? bTasks.map(t => `
         <div class="block-task-row">
           <input type="checkbox" ${isTaskDone(t,date)?'checked':''}
-            onchange="toggleComplete('${t.id}');renderAll();openBlockModal('${b.id}')">
+            onchange="checkTaskOnDate('${t.id}','${date}');renderAll();openBlockModal('${b.id}')">
           <span style="flex:1;font-size:12px;${isTaskDone(t,date)?'text-decoration:line-through;color:var(--text-muted)':''}">${h(t.title)}</span>
           <button class="btn btn-sm btn-danger" style="padding:1px 6px;font-size:11px"
             onclick="unlinkTaskFromBlock('${t.id}','${b.id}');renderAll();openBlockModal('${b.id}')">外す</button>
