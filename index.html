@@ -1271,8 +1271,9 @@ const S = {
   goalView: 'grid', // 'grid' | 'list'
 };
 
-let _blockEditId    = null; // 編集中ブロックID (null = 新規)
+let _blockEditId      = null; // 編集中ブロックID (null = 新規)
 let _blockPendingTaskId = null; // ブロック作成後にリンクするタスクID
+let _blockDisplayDate = null; // カレンダー上で「何日として開いたか」（繰り返しブロックの日付判定に使用）
 
 let _schedTaskId = null; // current task id for schedule modal (null = picker mode)
 
@@ -1925,7 +1926,7 @@ function renderWeek(con) {
       S.blocks.filter(b => isBlockOnDate(b, ds) && parseInt(b.startTime)<=hh && parseInt(b.endTime)>hh)
         .forEach(b => {
           const bTasks = getBlockTasks(b.id);
-          html += `<div class="week-block-chip" onclick="event.stopPropagation();openBlockModal('${b.id}')">${h(b.title||'作業枠')} ${b.startTime}–${b.endTime}${bTasks.length?` (${bTasks.length})`:''}</div>`;
+          html += `<div class="week-block-chip" onclick="event.stopPropagation();openBlockModal('${b.id}','${ds}')">${h(b.title||'作業枠')} ${b.startTime}–${b.endTime}${bTasks.length?` (${bTasks.length})`:''}</div>`;
         });
       html += `</div>`;
     });
@@ -2006,7 +2007,7 @@ function renderDay(con) {
     const bTasks = getBlockTasks(b.id);
     const doneCnt = bTasks.filter(t => isTaskDone(t, ds)).length;
     html += `<div class="day-block" style="top:${top}px;height:${height}px"
-      onclick="event.stopPropagation();openBlockModal('${b.id}')">
+      onclick="event.stopPropagation();openBlockModal('${b.id}','${ds}')">
       <div class="day-block-hdr">
         <span>${h(b.title || '作業枠')}</span>
         <span class="day-block-time">${b.startTime}–${b.endTime}
@@ -2535,7 +2536,9 @@ function openBlockModal(id, prefillDate, prefillStart, prefillEnd) {
   document.getElementById('block-save-btn').style.display   = '';   // 必ず表示
   document.getElementById('block-delete-btn').style.display = b ? '' : 'none';
 
-  const date  = b ? b.date      : (prefillDate  || today());
+  // 繰り返しブロック対応: カレンダーから開いた日付 (prefillDate) を優先し、なければ b.date
+  const date  = b ? (prefillDate || b.date) : (prefillDate || today());
+  _blockDisplayDate = date; // モーダル内の再オープン・チェック処理で参照
   const start = b ? b.startTime : (prefillStart || '09:00');
   const end   = b ? b.endTime   : (prefillEnd   || '10:00');
   const title = b ? b.title     : '';
@@ -2602,10 +2605,10 @@ function openBlockModal(id, prefillDate, prefillStart, prefillEnd) {
       ${bTasks.length ? bTasks.map(t => `
         <div class="block-task-row">
           <input type="checkbox" ${isTaskDone(t,date)?'checked':''}
-            onchange="checkTaskOnDate('${t.id}','${date}');renderAll();openBlockModal('${b.id}')">
+            onchange="checkTaskOnDate('${t.id}',_blockDisplayDate);renderAll();openBlockModal('${b.id}',_blockDisplayDate)">
           <span style="flex:1;font-size:12px;${isTaskDone(t,date)?'text-decoration:line-through;color:var(--text-muted)':''}">${h(t.title)}</span>
           <button class="btn btn-sm btn-danger" style="padding:1px 6px;font-size:11px"
-            onclick="unlinkTaskFromBlock('${t.id}','${b.id}');renderAll();openBlockModal('${b.id}')">外す</button>
+            onclick="unlinkTaskFromBlock('${t.id}','${b.id}');renderAll();openBlockModal('${b.id}',_blockDisplayDate)">外す</button>
         </div>`).join('') : '<div style="color:var(--text-muted);font-size:12px">タスクが紐づいていません</div>'}
     </div>
     <div class="block-section-title">タスクを追加</div>
