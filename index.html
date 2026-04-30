@@ -1790,7 +1790,10 @@ function getOccurrenceDates(task) {
   return dates;
 }
 // すべての発生日が完了済みか
+// recurrenceEnd 未設定（無期限）のタスクは「終わりがない」ので completions だけでは全完了にならない
+// → t.completed の強制完了のみが「全完了」とみなされる
 function isRecurringFullyDone(task) {
+  if (!task.recurrenceEnd) return false;
   const dates = getOccurrenceDates(task);
   return dates.length > 0 && dates.every(ds => isRecurringDone(task.id, ds));
 }
