@@ -1390,6 +1390,15 @@ function toggleComplete(id) {
   if (!t) return;
   updateTask(id, { completed: !t.completed });
 }
+// TODOリストのチェックボックス専用：
+//   繰り返しタスク → 当日ログのみトグル（t.completed は触らない）
+//   通常タスク     → 従来通り t.completed をトグル
+function checkTask(id) {
+  const t = S.tasks.find(t => t.id === id);
+  if (!t) return;
+  if (t.recurrence) toggleCompletion(id, today());
+  else              toggleComplete(id);
+}
 
 // ──────────────────────────────────────────────
 //  BLOCK CRUD
@@ -1631,7 +1640,8 @@ function renderTodoList() {
   }
 
   list.innerHTML = tasks.map(t => {
-    const isDone  = isTaskDone(t);
+    // 繰り返しタスクは「今日分が完了済みか」で表示状態を決める
+    const isDone  = t.recurrence ? isTaskDone(t, tod) : isTaskDone(t);
     const overdue = t.dueDate && t.dueDate < tod && !isDone;
     const goal    = t.goalId    ? S.goals.find(g => g.id === t.goalId)    : null;
     const project = t.projectId ? S.projects.find(p => p.id === t.projectId) : null;
@@ -1642,7 +1652,7 @@ function renderTodoList() {
 <div class="task-item ${isDone?'completed':''} ${overdue?'overdue':''} ${S.highlightId===t.id?'highlighted':''}"
      data-id="${t.id}" onclick="openTaskDetail('${t.id}')">
   <input type="checkbox" class="task-checkbox" ${isDone?'checked':''}
-    onclick="event.stopPropagation();toggleComplete('${t.id}');renderAll()">
+    onclick="event.stopPropagation();checkTask('${t.id}');renderAll()">
   <div class="task-content">
     <div class="task-title">${h(t.title)}</div>
     ${t.memo?`<div style="font-size:11px;color:var(--text-muted);margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:100%">💬 ${h(t.memo)}</div>`:''}
