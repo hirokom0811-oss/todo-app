@@ -704,6 +704,12 @@
               </div>
             </div>
             <div class="form-row">
+              <div class="form-group" id="task-project-group">
+                <label>プロジェクト（仕事）</label>
+                <select id="task-project"></select>
+              </div>
+            </div>
+            <div class="form-row">
               <div class="form-group">
                 <label>繰り返し</label>
                 <select id="task-recur" onchange="toggleRecurEnd('task')">
@@ -1027,6 +1033,12 @@
         <div class="form-group">
           <label>紐づき目標</label>
           <select id="edit-goal"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" id="edit-project-group">
+          <label>プロジェクト（仕事）</label>
+          <select id="edit-project"></select>
         </div>
       </div>
       <div class="form-row">
@@ -1355,7 +1367,7 @@ function addTask(d) {
     id: uuid(), title: d.title,
     dueDate: d.dueDate || null, scheduledDate: null, scheduledTime: null, scheduledEndTime: null,
     blockIds: [],
-    goalId: d.goalId || null, parentId: d.parentId || null, category: d.category || 'work',
+    goalId: d.goalId || null, parentId: d.parentId || null, projectId: d.projectId || null, category: d.category || 'work',
     priority: d.priority || 'medium', scale: d.scale || 'small',
     theme: d.theme || null, memo: d.memo || null, completed: false,
     recurrence: d.recurrence || null, recurrenceEnd: d.recurrenceEnd || null,
@@ -1528,8 +1540,9 @@ function updateProject(id, data) {
 
 function deleteProject(id) {
   S.projects = S.projects.filter(p => p.id !== id);
+  S.tasks.forEach(t => { if (t.projectId === id) t.projectId = null; });
   saveProjects();
-  // フェーズ2でTaskのprojectIdをnullに戻す処理を追加
+  saveTasks();
 }
 
 function getProjectById(id) {
@@ -1620,7 +1633,8 @@ function renderTodoList() {
   list.innerHTML = tasks.map(t => {
     const isDone  = isTaskDone(t);
     const overdue = t.dueDate && t.dueDate < tod && !isDone;
-    const goal = t.goalId ? S.goals.find(g => g.id === t.goalId) : null;
+    const goal    = t.goalId    ? S.goals.find(g => g.id === t.goalId)    : null;
+    const project = t.projectId ? S.projects.find(p => p.id === t.projectId) : null;
     const scaleCls  = t.scale === 'large' ? 'badge-scale-large' : t.scale === 'medium' ? 'badge-scale-medium' : 'badge-scale-small';
     const priCls    = `badge-${t.priority}`;
     const children  = S.tasks.filter(c => c.parentId === t.id);
@@ -1641,6 +1655,7 @@ function renderTodoList() {
       ${t.dueDate?`<span class="badge badge-due ${overdue?'overdue':''}">📅${t.dueDate}</span>`:''}
       ${(t.blockIds||[]).map(bid=>{const blk=getBlockById(bid);return blk?`<span class="badge badge-block">📦${h(blk.title||blk.date+' '+blk.startTime)}</span>`:''}).join('')}
       ${goal?`<span class="badge badge-goal">🎯#${goal.number}</span>`:''}
+      ${project?`<span class="badge" style="background:#f0fdf4;color:#15803d">📁${h(project.title)}</span>`:''}
       ${children.length?`<span class="badge badge-children" title="子タスクを表示" onclick="event.stopPropagation();openTaskDetail('${t.id}')">▶ ${children.length}件</span>`:''}
     </div>
   </div>
@@ -2183,7 +2198,18 @@ function renderProjectList() {
     const dueTxt   = p.dueDate
       ? `<span class="${p.dueDate < tod ? 'overdue' : ''}">期日：${p.dueDate}</span>`
       : `<span>期日：未設定</span>`;
-    const taskCount = getProjectTasks(p.id).length;
+    const ptasks    = getProjectTasks(p.id);
+    const taskCount = ptasks.length;
+    const doneCnt   = ptasks.filter(t => isTaskDone(t)).length;
+    const pct       = taskCount ? Math.round(doneCnt / taskCount * 100) : 0;
+    const progressBar = taskCount ? `<div style="margin-top:6px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:2px">
+        <span>タスク完了</span><span>${doneCnt}/${taskCount}件 (${pct}%)</span>
+      </div>
+      <div style="height:5px;border-radius:3px;background:var(--border);overflow:hidden">
+        <div style="height:100%;border-radius:3px;background:var(--personal);width:${pct}%;transition:width .3s"></div>
+      </div>
+    </div>` : '';
     const memoSnip  = p.memo ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;white-space:pre-wrap;word-break:break-all">${h(p.memo.slice(0,80))}${p.memo.length>80?'…':''}</div>` : '';
     return `<div class="project-card">
       <div class="project-card-header">
@@ -2197,6 +2223,7 @@ function renderProjectList() {
         <span>タスク：${taskCount}件</span>
       </div>
       ${memoSnip}
+      ${progressBar}
       <div class="project-card-actions">
         <button class="btn btn-sm" onclick="decomposeProject('${p.id}')">🤖 AI分解</button>
         <button class="btn btn-sm" onclick="openProjectModal('${p.id}')">編集</button>
@@ -2279,14 +2306,24 @@ function buildGoalSelect(selectId, current) {
       .map(g => `<option value="${g.id}" ${current===g.id?'selected':''}>#${g.number} ${h(g.title)}</option>`)
       .join('');
 }
+function buildProjectSelect(selectId, current) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const active = S.projects.filter(p => p.status !== 'done');
+  sel.innerHTML = `<option value="">— なし —</option>` +
+    active.map(p => `<option value="${p.id}" ${current===p.id?'selected':''}>${h(p.title)}</option>`).join('');
+}
 function refreshGoalSelects() {
   buildGoalSelect('task-goal');
-  // edit modal goal select only rebuilt on open
+  buildProjectSelect('task-project');
+  // edit modal selects only rebuilt on open
 }
 function onCategoryChange(prefix) {
   const cat = document.getElementById(`${prefix}-category`).value;
   buildThemeSelect(`${prefix}-theme`, cat, '');
   document.getElementById(`${prefix}-theme-group`).style.display = cat==='work' ? '' : 'none';
+  const projGroup = document.getElementById(`${prefix}-project-group`);
+  if (projGroup) projGroup.style.display = cat==='work' ? '' : 'none';
 }
 
 // ──────────────────────────────────────────────
@@ -2295,7 +2332,8 @@ function onCategoryChange(prefix) {
 function openTaskDetail(id) {
   const t = S.tasks.find(t=>t.id===id);
   if (!t) return;
-  const goal = t.goalId ? S.goals.find(g=>g.id===t.goalId) : null;
+  const goal    = t.goalId    ? S.goals.find(g=>g.id===t.goalId)        : null;
+  const project = t.projectId ? S.projects.find(p=>p.id===t.projectId) : null;
   const scaleCls = t.scale==='large'?'badge-scale-large':t.scale==='medium'?'badge-scale-medium':'badge-scale-small';
 
   document.getElementById('task-detail-body').innerHTML = `
@@ -2306,6 +2344,7 @@ function openTaskDetail(id) {
     ${t.theme?`<div class="detail-row"><span class="detail-label">テーマ</span><span class="badge badge-theme">${h(t.theme)}</span></div>`:''}
     ${t.dueDate?`<div class="detail-row"><span class="detail-label">期日</span>${t.dueDate}</div>`:''}
     ${t.scheduledDate?`<div class="detail-row"><span class="detail-label">作業予定</span>${t.scheduledDate}</div>`:''}
+    ${project?`<div class="detail-row"><span class="detail-label">プロジェクト</span><span class="badge" style="background:#f0fdf4;color:#15803d">📁 ${h(project.title)}</span></div>`:''}
     ${goal?`<div class="detail-row"><span class="detail-label">紐づき目標</span><span class="badge badge-goal">🎯#${goal.number} ${h(goal.title)}</span></div>`:''}
     ${t.recurrence?`<div class="detail-row"><span class="detail-label">繰り返し</span><span class="badge badge-recur">🔁${recurLabel(t)}${t.recurrenceEnd?' （〜'+t.recurrenceEnd+'）':''}</span></div>`:''}
     ${t.memo?`<div class="detail-row"><span class="detail-label">メモ</span><span style="font-size:12px;line-height:1.6;white-space:pre-wrap">${h(t.memo)}</span></div>`:''}
@@ -2369,6 +2408,8 @@ function openEditModal(id) {
   buildThemeSelect('edit-theme', t.category, t.theme || '');
   document.getElementById('edit-theme-group').style.display = t.category==='work' ? '' : 'none';
   buildGoalSelect('edit-goal', t.goalId || '');
+  buildProjectSelect('edit-project', t.projectId || '');
+  document.getElementById('edit-project-group').style.display = t.category==='work' ? '' : 'none';
   document.getElementById('edit-recur').value = t.recurrence || '';
   document.getElementById('edit-recur-end').value = t.recurrenceEnd || '';
   toggleRecurEnd('edit');
@@ -2410,6 +2451,7 @@ function saveEditTask() {
     scale:     document.getElementById('edit-scale').value,
     theme:         cat==='work' ? (document.getElementById('edit-theme').value || null) : null,
     goalId:        document.getElementById('edit-goal').value || null,
+    projectId:     cat==='work' ? (document.getElementById('edit-project').value || null) : null,
     recurrence:    document.getElementById('edit-recur').value || null,
     recurrenceEnd: document.getElementById('edit-recur-end').value || null,
     memo:          document.getElementById('edit-memo').value.trim() || null,
@@ -3370,11 +3412,12 @@ function addSelectedAiTasksForProject(tasks, project) {
     const t = tasks[i];
     if (!t) return;
     addTask({
-      title:    t.title,
-      category: 'work',
-      priority: ['high','medium','low'].includes(t.priority) ? t.priority : 'medium',
-      scale:    ['large','medium','small'].includes(t.scale)  ? t.scale   : 'medium',
-      theme:    project.theme || null,
+      title:     t.title,
+      category:  'work',
+      priority:  ['high','medium','low'].includes(t.priority) ? t.priority : 'medium',
+      scale:     ['large','medium','small'].includes(t.scale)  ? t.scale   : 'medium',
+      theme:     project.theme || null,
+      projectId: project.id,
     });
   });
   closeAllModals();
@@ -4287,6 +4330,7 @@ function handleAddTask(e) {
     scale:    document.getElementById('task-scale').value,
     theme:         cat==='work' ? (document.getElementById('task-theme').value || null) : null,
     goalId:        document.getElementById('task-goal').value || null,
+    projectId:     cat==='work' ? (document.getElementById('task-project').value || null) : null,
     recurrence:    document.getElementById('task-recur').value || null,
     recurrenceEnd: document.getElementById('task-recur-end').value || null,
   });
@@ -4322,6 +4366,7 @@ function init() {
   loadAll();
   buildThemeSelect('task-theme', 'work', '');
   buildGoalSelect('task-goal', '');
+  buildProjectSelect('task-project', '');
   document.getElementById('travel-date').value = today();
   initAddFormDetail();
   // ブラウザの初回レイアウト完了後に描画（scrollTop等が正しく動作するよう1フレーム遅らせる）

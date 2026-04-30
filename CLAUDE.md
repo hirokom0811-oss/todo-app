@@ -92,6 +92,7 @@ git push origin main
 - `scheduledTime` / `scheduledEndTime` は廃止済み（フィールドは残存するが未使用）。時刻管理は Block で行う。
 - `parentId` — AI分解で生成したサブタスクが親タスクのIDを持つ。`null` の場合は親タスク（TODOリストに表示）。
 - `blockIds[]` — Task 側が Block への参照を持つ（Block 側は Task 参照を持たない）。
+- `projectId` — 仕事カテゴリのタスクが紐づくプロジェクトID。`null` の場合は未紐づけ。既存データは `null` として後方互換。
 
 ### Block（作業枠）
 
@@ -385,7 +386,8 @@ let _travelSpots        = [];    // 旅モード: 最後の検索結果
 | `uuid()` | `crypto.randomUUID()` のラッパー |
 | `buildThemeSelect(id, cat, selected)` | テーマ `<select>` を動的に構築 |
 | `buildGoalSelect(id, selected)` | 目標 `<select>` を動的に構築 |
-| `onCategoryChange(prefix)` | カテゴリ変更時のテーマ表示/非表示切替 |
+| `buildProjectSelect(id, selected)` | プロジェクト `<select>` を動的に構築（active のみ） |
+| `onCategoryChange(prefix)` | カテゴリ変更時のテーマ・プロジェクト選択の表示/非表示切替 |
 
 ---
 
