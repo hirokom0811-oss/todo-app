@@ -1618,16 +1618,15 @@ function renderTodoList() {
   const tod = today();
   const thisMonth = tod.slice(0, 7); // "YYYY-MM"
   let tasks = S.tasks.filter(t => !t.parentId);
-  if (status === 'active')    tasks = tasks.filter(t => {
-    if (t.recurrence && date === 'today') return !isRecurringDone(t.id, tod);
-    return !isTaskDone(t);
-  });
+  // 繰り返しタスクの「active/completed」はすべての発生日完了 or t.completed（強制完了）で判定する
+  // 個別日付のチェックは完了ログに記録されるが、TODO一覧の完了扱いには影響しない
+  if (status === 'active')    tasks = tasks.filter(t => !isTaskDone(t));
   if (status === 'completed') tasks = tasks.filter(t =>  isTaskDone(t));
   if (category !== 'all')     tasks = tasks.filter(t => t.category === category);
   if (date === 'today')       tasks = tasks.filter(t => {
     if (t.dueDate === tod) return true;
     if (t.scheduledDate === tod) return true;
-    if (isOccurrenceOnDate(t, tod) && !isRecurringDone(t.id, tod)) return true;
+    if (isOccurrenceOnDate(t, tod)) return true;  // 個別日チェック済みでも今日のタスクとして表示
     if ((t.blockIds||[]).some(bid => { const b = getBlockById(bid); return b && b.date === tod; })) return true;
     return false;
   });
@@ -1648,8 +1647,8 @@ function renderTodoList() {
   }
 
   list.innerHTML = tasks.map(t => {
-    // 繰り返しタスクは「今日分が完了済みか」で表示状態を決める
-    const isDone  = t.recurrence ? isTaskDone(t, tod) : isTaskDone(t);
+    // 繰り返しタスクの完了表示は「全発生日完了 or 強制完了」のみ。個別日チェックでは変わらない
+    const isDone  = isTaskDone(t);
     const overdue = t.dueDate && t.dueDate < tod && !isDone;
     const goal    = t.goalId    ? S.goals.find(g => g.id === t.goalId)    : null;
     const project = t.projectId ? S.projects.find(p => p.id === t.projectId) : null;
