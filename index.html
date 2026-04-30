@@ -578,6 +578,13 @@
     .travel-spot-notes { font-size:11px; color:var(--primary); }
     .travel-cat-badge { display:inline-block; font-size:10px; padding:1px 7px; border-radius:10px; background:var(--work-light); color:var(--work); margin-bottom:4px; }
     .travel-generating { text-align:center; padding:24px; color:var(--text-muted); font-size:14px; }
+    /* ── Sync Banner ── */
+    #sync-banner { padding:8px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+      font-size:13px; flex-shrink:0; border-bottom:1px solid transparent; }
+    #sync-banner.banner-pull { background:#eff6ff; border-color:#bfdbfe; color:#1e40af; }
+    #sync-banner.banner-push { background:#fefce8; border-color:#fde68a; color:#92400e; }
+    #sync-banner .banner-msg { flex:1; }
+    #sync-banner .banner-actions { display:flex; gap:6px; flex-shrink:0; }
     .travel-spot-card { border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:10px; background:var(--surface); }
     .travel-spot-card-header { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:6px; }
     .travel-spot-meta { font-size:11px; color:var(--text-muted); margin-top:4px; }
@@ -602,6 +609,9 @@
     <label class="btn" style="cursor:pointer">📥 読込<input type="file" id="import-file" accept=".json" style="display:none"></label>
   </div>
 </header>
+
+<!-- ════════════════ SYNC BANNER ════════════════ -->
+<div id="sync-banner" style="display:none"></div>
 
 <!-- ════════════════ MAIN ════════════════ -->
 <main>
@@ -1157,7 +1167,60 @@ function loadAll() {
       delete t.blockId;
     }
   });
+  // 起動時Gist同期チェック（非同期・UIをブロックしない）
+  checkGistSync();
 }
+
+function hideSyncBanner() {
+  const b = document.getElementById('sync-banner');
+  if (b) { b.style.display = 'none'; b.className = ''; b.innerHTML = ''; }
+}
+
+async function checkGistSync() {
+  const token  = localStorage.getItem('todo_gist_token');
+  const gistId = localStorage.getItem('todo_gist_id');
+  if (!token || !gistId) return;
+
+  try {
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      headers: { Authorization: `token ${token}` },
+    });
+    if (!res.ok) return; // 認証エラー等は無視
+    const data = await res.json();
+    const gistUpdated = data.updated_at; // ISO8601
+    if (!gistUpdated) return;
+
+    const lastSaved = localStorage.getItem('todo_last_saved');
+    const banner    = document.getElementById('sync-banner');
+    if (!banner) return;
+
+    if (!lastSaved || gistUpdated > lastSaved) {
+      // Gistが新しい → 読み込み促進
+      banner.className   = 'banner-pull';
+      banner.style.display = 'flex';
+      banner.innerHTML = `
+        <span class="banner-msg">☁️ クラウドに新しいデータがあります</span>
+        <div class="banner-actions">
+          <button class="btn btn-sm btn-primary" onclick="gistPull()">読み込む</button>
+          <button class="btn btn-sm" onclick="hideSyncBanner()">無視</button>
+        </div>`;
+    } else if (lastSaved > gistUpdated) {
+      // ローカルが新しい → 保存促進
+      banner.className   = 'banner-push';
+      banner.style.display = 'flex';
+      banner.innerHTML = `
+        <span class="banner-msg">💾 未保存のデータがあります</span>
+        <div class="banner-actions">
+          <button class="btn btn-sm btn-primary" onclick="gistPush()">クラウドに保存</button>
+          <button class="btn btn-sm" onclick="hideSyncBanner()">あとで</button>
+        </div>`;
+    }
+    // 同じ場合は何も表示しない
+  } catch (_) {
+    // ネットワークエラー等は無視
+  }
+}
+
 const saveTasks       = () => localStorage.setItem('todo_tasks',       JSON.stringify(S.tasks));
 const saveGoals       = () => localStorage.setItem('todo_goals',       JSON.stringify(S.goals));
 const saveBlocks      = () => localStorage.setItem('todo_blocks',      JSON.stringify(S.blocks));
@@ -3135,6 +3198,8 @@ async function gistPush() {
     if (!res.ok) { const e = await res.json(); throw new Error(e.message || res.status); }
     const data = await res.json();
     if (!gistId) localStorage.setItem('todo_gist_id', data.id);
+    localStorage.setItem('todo_last_saved', new Date().toISOString());
+    hideSyncBanner();
     showToast('☁️ クラウドに保存しました');
     renderSettings();
   } catch (e) {
@@ -3166,6 +3231,8 @@ async function gistPull() {
     if (d.themes)         S.themes         = d.themes;
     if (d.blockTemplates) S.blockTemplates = d.blockTemplates;
     saveTasks(); saveGoals(); saveBlocks(); saveCompletions(); saveThemes(); saveBlockTemplates();
+    localStorage.setItem('todo_last_saved', new Date().toISOString());
+    hideSyncBanner();
     renderAll();
     showToast('☁️ クラウドから読み込みました');
   } catch (e) {
