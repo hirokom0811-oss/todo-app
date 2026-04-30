@@ -2536,15 +2536,17 @@ function openBlockModal(id, prefillDate, prefillStart, prefillEnd) {
   document.getElementById('block-save-btn').style.display   = '';   // 必ず表示
   document.getElementById('block-delete-btn').style.display = b ? '' : 'none';
 
-  // 繰り返しブロック対応: カレンダーから開いた日付 (prefillDate) を優先し、なければ b.date
-  const date  = b ? (prefillDate || b.date) : (prefillDate || today());
-  _blockDisplayDate = date; // モーダル内の再オープン・チェック処理で参照
+  // 繰り返しブロック対応:
+  // editDate  → 日付入力欄に表示する値。既存ブロックは b.date（基準日）を維持して recurrence チェーンを守る
+  // _blockDisplayDate → タスク完了チェックの対象日。カレンダーから開いた日付 (prefillDate) を優先
+  const editDate = b ? b.date : (prefillDate || today());
+  _blockDisplayDate = b ? (prefillDate || b.date) : (prefillDate || today());
   const start = b ? b.startTime : (prefillStart || '09:00');
   const end   = b ? b.endTime   : (prefillEnd   || '10:00');
   const title = b ? b.title     : '';
   const theme = b ? (b.theme || '') : '';
   const bTasks  = b ? getBlockTasks(b.id) : [];
-  const doneCnt = bTasks.filter(t => isTaskDone(t, date)).length;
+  const doneCnt = bTasks.filter(t => isTaskDone(t, _blockDisplayDate)).length;
 
   // この枠にまだ紐づいていない未完了タスク
   const unlinked = b ? S.tasks.filter(t => !t.completed && !(t.blockIds||[]).includes(b.id)) : [];
@@ -2570,7 +2572,7 @@ function openBlockModal(id, prefillDate, prefillStart, prefillEnd) {
     <div class="form-row">
       <div class="form-group mb8">
         <label>日付</label>
-        <input type="date" id="bm-date" value="${date}">
+        <input type="date" id="bm-date" value="${editDate}">
       </div>
     </div>
     <div class="form-row">
@@ -2604,9 +2606,9 @@ function openBlockModal(id, prefillDate, prefillStart, prefillEnd) {
     <div id="bm-linked">
       ${bTasks.length ? bTasks.map(t => `
         <div class="block-task-row">
-          <input type="checkbox" ${isTaskDone(t,date)?'checked':''}
+          <input type="checkbox" ${isTaskDone(t,_blockDisplayDate)?'checked':''}
             onchange="checkTaskOnDate('${t.id}',_blockDisplayDate);renderAll();openBlockModal('${b.id}',_blockDisplayDate)">
-          <span style="flex:1;font-size:12px;${isTaskDone(t,date)?'text-decoration:line-through;color:var(--text-muted)':''}">${h(t.title)}</span>
+          <span style="flex:1;font-size:12px;${isTaskDone(t,_blockDisplayDate)?'text-decoration:line-through;color:var(--text-muted)':''}">${h(t.title)}</span>
           <button class="btn btn-sm btn-danger" style="padding:1px 6px;font-size:11px"
             onclick="unlinkTaskFromBlock('${t.id}','${b.id}');renderAll();openBlockModal('${b.id}',_blockDisplayDate)">外す</button>
         </div>`).join('') : '<div style="color:var(--text-muted);font-size:12px">タスクが紐づいていません</div>'}
