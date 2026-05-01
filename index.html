@@ -3040,8 +3040,20 @@ function buildDecomposePrompt(goal) {
 
   } else if (goal.type === 'habit') {
     return base + `この習慣を継続するために、1ヶ月単位の繰り返しタスクを12ヶ月分提案してください。
-各タスクは「${goal.title}（1月）」のような形式で、
-recurrence を "weekly" または "daily"、recurrenceEnd を各月末日に設定してください。`;
+各タスクは「${goal.title}（1月）」のような形式で月ごとに1件ずつ、合計12件作成してください。
+各タスクのJSONには必ず以下のフィールドをすべて含めてください：
+- recurrence: "daily"（毎日習慣の場合）または "weekly"（週次習慣の場合）
+- scheduledDate: その月の1日（例："2026-01-01"）
+- recurrenceEnd: その月の末日（例："2026-01-31"）
+例：
+{
+  "title": "${goal.title}（1月）",
+  "recurrence": "daily",
+  "scheduledDate": "2026-01-01",
+  "recurrenceEnd": "2026-01-31",
+  "priority": "medium",
+  "scale": "small"
+}`;
 
   } else if (goal.type === 'explore') {
     return base + `現在の状況：${goal.progressNote || '未記入'}
@@ -3087,6 +3099,7 @@ ${themeList ? `利用可能なテーマ: ${themeList}\n` : ''}
       "scale": "large | medium | small",
       "theme": "テーマ名または空文字",
       "recurrence": "daily | weekday | weekly | null",
+      "scheduledDate": "YYYY-MM-DD | null",
       "recurrenceEnd": "YYYY-MM-DD | null",
       "memo": "補足（30文字以内、任意）"
     }
@@ -3096,6 +3109,7 @@ priority: high=今すぐ必要, medium=通常, low=余裕があれば
 scale: large=2時間以上, medium=1〜2時間, small=1時間未満
 theme は利用可能なテーマから選ぶか空文字。
 recurrence: 習慣系タスクのみ設定、それ以外は null。
+scheduledDate: 繰り返しタスクの開始日（YYYY-MM-DD）、なければ null。
 recurrenceEnd: YYYY-MM-DD形式、繰り返しなしの場合は null。`;
 
   try {
@@ -3191,14 +3205,15 @@ function addSelectedAiTasks(tasks, goalId) {
     const t = tasks[i];
     if (!t) return;
     addTask({
-      title:         t.title,
+      title:          t.title,
       category,
-      priority:      ['high','medium','low'].includes(t.priority) ? t.priority : 'medium',
-      scale:         ['large','medium','small'].includes(t.scale)  ? t.scale  : 'medium',
-      theme:         t.theme || null,
-      recurrence:    ['daily','weekday','weekly'].includes(t.recurrence) ? t.recurrence : null,
-      recurrenceEnd: t.recurrenceEnd || null,
-      memo:          t.memo || null,
+      priority:       ['high','medium','low'].includes(t.priority) ? t.priority : 'medium',
+      scale:          ['large','medium','small'].includes(t.scale)  ? t.scale  : 'medium',
+      theme:          t.theme || null,
+      recurrence:     ['daily','weekday','weekly'].includes(t.recurrence) ? t.recurrence : null,
+      scheduledDate:  t.scheduledDate || null,
+      recurrenceEnd:  t.recurrenceEnd || null,
+      memo:           t.memo || null,
       goalId,
     });
   });
