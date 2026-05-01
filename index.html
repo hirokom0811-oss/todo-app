@@ -1784,8 +1784,10 @@ function jumpToDay(ds) {
 // Tasks to show on a given date (due or scheduled)
 // ── Recurrence helpers ──
 function isOccurrenceOnDate(t, ds) {
-  if (!t.recurrence || !t.scheduledDate) return false;
-  if (ds < t.scheduledDate) return false;
+  if (!t.recurrence) return false;
+  // scheduledDate 未設定のとき createdAt の日付を開始日とする（getOccurrenceDates と統一）
+  const startStr = t.scheduledDate || t.createdAt?.slice(0, 10) || today();
+  if (ds < startStr) return false;
   if (t.recurrenceEnd && ds > t.recurrenceEnd) return false;
   if (t.recurrence === 'daily') return true;
   if (t.recurrence === 'weekday') {
@@ -1793,8 +1795,8 @@ function isOccurrenceOnDate(t, ds) {
     return dow >= 1 && dow <= 5; // 月〜金
   }
   if (t.recurrence === 'weekly') {
-    const base   = new Date(t.scheduledDate + 'T12:00:00');
-    const target = new Date(ds            + 'T12:00:00');
+    const base   = new Date(startStr + 'T12:00:00');
+    const target = new Date(ds       + 'T12:00:00');
     const diff   = Math.round((target - base) / 86400000);
     return diff >= 0 && diff % 7 === 0;
   }
@@ -3752,9 +3754,10 @@ function openReviewModal(ds) {
 
   // ① 通常タスク（期日がその日）
   const dueTasks = S.tasks.filter(t => t.dueDate === ds);
-  // ② 繰り返しタスク（その日が発生日 + 完了ログあり）
+  // ② 繰り返しタスク（completionsログに記録あり = その日に実施した事実が確定）
+  // isOccurrenceOnDate は不要。ログの存在が唯一の根拠。
   const recurringDone = S.tasks.filter(t =>
-    t.recurrence && isOccurrenceOnDate(t, ds) && isRecurringDone(t.id, ds)
+    t.recurrence && isRecurringDone(t.id, ds)
   );
   // ③ 繰り返しタスク（その日が発生日 + 未完了）
   const recurringUndone = S.tasks.filter(t =>
