@@ -628,6 +628,7 @@
     <button class="btn" onclick="openSettings()">⚙ 設定</button>
     <button class="btn" onclick="exportJSON()">📤 出力</button>
     <label class="btn" style="cursor:pointer">📥 読込<input type="file" id="import-file" accept=".json" style="display:none"></label>
+    <span id="app-version" style="font-size:10px;color:var(--text-muted);align-self:center;padding:0 4px;white-space:nowrap"></span>
   </div>
 </header>
 
@@ -1249,6 +1250,11 @@ function uuid() {
     return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
   });
 }
+
+// ──────────────────────────────────────────────
+//  VERSION
+// ──────────────────────────────────────────────
+const APP_VERSION = 'v1.0.0';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -4388,6 +4394,9 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 // ──────────────────────────────────────────────
 function init() {
   loadAll();
+  // バージョン表示
+  const verEl = document.getElementById('app-version');
+  if (verEl) verEl.textContent = APP_VERSION;
   buildThemeSelect('task-theme', 'work', '');
   buildGoalSelect('task-goal', '');
   buildProjectSelect('task-project', '');
