@@ -1279,7 +1279,7 @@ const S = {
 
 let _blockEditId      = null; // 編集中ブロックID (null = 新規)
 let _blockPendingTaskId = null; // ブロック作成後にリンクするタスクID
-let _blockDisplayDate = null; // カレンダー上で「何日として開いたか」（繰り返しブロックの日付判定に使用）
+let _blockViewDate = null;    // カレンダー上で「何日として開いたか」（繰り返しタスクの完了ログ日付に使用）
 
 let _schedTaskId = null; // current task id for schedule modal (null = picker mode)
 
@@ -2542,16 +2542,16 @@ function openBlockModal(id, prefillDate, prefillStart, prefillEnd) {
   document.getElementById('block-delete-btn').style.display = b ? '' : 'none';
 
   // 繰り返しブロック対応:
-  // editDate  → 日付入力欄に表示する値。既存ブロックは b.date（基準日）を維持して recurrence チェーンを守る
-  // _blockDisplayDate → タスク完了チェックの対象日。カレンダーから開いた日付 (prefillDate) を優先
+  // editDate       → 日付入力欄に表示する値。既存ブロックは b.date（基準日）を維持して recurrence チェーンを守る
+  // _blockViewDate → 繰り返しタスクの完了ログ日付。カレンダーから開いた日付 (prefillDate) を優先する
   const editDate = b ? b.date : (prefillDate || today());
-  _blockDisplayDate = b ? (prefillDate || b.date) : (prefillDate || today());
+  _blockViewDate = b ? (prefillDate || b.date) : (prefillDate || today());
   const start = b ? b.startTime : (prefillStart || '09:00');
   const end   = b ? b.endTime   : (prefillEnd   || '10:00');
   const title = b ? b.title     : '';
   const theme = b ? (b.theme || '') : '';
   const bTasks  = b ? getBlockTasks(b.id) : [];
-  const doneCnt = bTasks.filter(t => isTaskDone(t, _blockDisplayDate)).length;
+  const doneCnt = bTasks.filter(t => t.recurrence ? isRecurringDone(t.id, _blockViewDate) : t.completed).length;
 
   // この枠にまだ紐づいていない未完了タスク
   const unlinked = b ? S.tasks.filter(t => !t.completed && !(t.blockIds||[]).includes(b.id)) : [];
@@ -2609,14 +2609,22 @@ function openBlockModal(id, prefillDate, prefillStart, prefillEnd) {
     ${b ? `
     <div class="block-section-title">紐づきタスク (${doneCnt}/${bTasks.length} 完了)</div>
     <div id="bm-linked">
-      ${bTasks.length ? bTasks.map(t => `
+      ${bTasks.length ? bTasks.map(t => {
+          // 繰り返しタスク：_blockViewDate の日別ログで判定
+          // 通常タスク    ：t.completed で判定
+          const chkd = t.recurrence ? isRecurringDone(t.id, _blockViewDate) : t.completed;
+          const onchg = t.recurrence
+            ? `toggleCompletion('${t.id}',_blockViewDate);renderAll();openBlockModal('${b.id}',_blockViewDate)`
+            : `toggleComplete('${t.id}');renderAll();openBlockModal('${b.id}',_blockViewDate)`;
+          return `
         <div class="block-task-row">
-          <input type="checkbox" ${isTaskDone(t,_blockDisplayDate)?'checked':''}
-            onchange="checkTaskOnDate('${t.id}',_blockDisplayDate);renderAll();openBlockModal('${b.id}',_blockDisplayDate)">
-          <span style="flex:1;font-size:12px;${isTaskDone(t,_blockDisplayDate)?'text-decoration:line-through;color:var(--text-muted)':''}">${h(t.title)}</span>
+          <input type="checkbox" ${chkd?'checked':''}
+            onchange="${onchg}">
+          <span style="flex:1;font-size:12px;${chkd?'text-decoration:line-through;color:var(--text-muted)':''}">${h(t.title)}</span>
           <button class="btn btn-sm btn-danger" style="padding:1px 6px;font-size:11px"
-            onclick="unlinkTaskFromBlock('${t.id}','${b.id}');renderAll();openBlockModal('${b.id}',_blockDisplayDate)">外す</button>
-        </div>`).join('') : '<div style="color:var(--text-muted);font-size:12px">タスクが紐づいていません</div>'}
+            onclick="unlinkTaskFromBlock('${t.id}','${b.id}');renderAll();openBlockModal('${b.id}',_blockViewDate)">外す</button>
+        </div>`;
+        }).join('') : '<div style="color:var(--text-muted);font-size:12px">タスクが紐づいていません</div>'}
     </div>
     <div class="block-section-title">タスクを追加</div>
     <div>
@@ -2638,7 +2646,7 @@ function addTaskToBlock(blockId) {
   if (!sel || !sel.value) { showToast('タスクを選択してください'); return; }
   linkTaskToBlock(sel.value, blockId);
   renderAll();
-  openBlockModal(blockId);
+  openBlockModal(blockId, _blockViewDate); // _blockViewDate を引き継ぐ
 }
 
 function saveBlock() {
