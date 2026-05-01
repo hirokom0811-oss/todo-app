@@ -729,16 +729,16 @@
         </form>
 
         <div class="task-filters">
-          <button class="filter-chip active" data-ft="status" data-fv="all">すべて</button>
-          <button class="filter-chip" data-ft="status" data-fv="active">未完了</button>
+          <button class="filter-chip" data-ft="status" data-fv="all">すべて</button>
+          <button class="filter-chip active" data-ft="status" data-fv="active">未完了</button>
           <button class="filter-chip" data-ft="status" data-fv="completed">完了済</button>
           <div class="filter-sep"></div>
           <button class="filter-chip active" data-ft="category" data-fv="all">仕事+個人</button>
           <button class="filter-chip" data-ft="category" data-fv="work">仕事</button>
           <button class="filter-chip" data-ft="category" data-fv="personal">個人</button>
           <div class="filter-sep"></div>
-          <button class="filter-chip active" data-ft="date" data-fv="all">全期間</button>
-          <button class="filter-chip" data-ft="date" data-fv="today">📅 今日</button>
+          <button class="filter-chip" data-ft="date" data-fv="all">全期間</button>
+          <button class="filter-chip active" data-ft="date" data-fv="today">📅 今日</button>
           <button class="filter-chip" data-ft="date" data-fv="month">📅 今月</button>
         </div>
 
@@ -1268,7 +1268,7 @@ const S = {
   completions: [], // [{taskId, date}] — 繰り返しタスクの日付別完了ログ
   themes: { work: ['設備計画','導入','活用','人づくり','コミュ・雑務'], personal: [] },
   projects: [],         // Project[]
-  filter: { status: 'all', category: 'all', date: 'all' },
+  filter: { status: 'active', category: 'all', date: 'today' },
   projectFilter: 'all', // 'all' | 'active' | 'waiting' | 'done'
   projectSort: 'priority', // 'priority' | 'due'
   calView: 'day',
