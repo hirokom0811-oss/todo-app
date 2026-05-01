@@ -760,6 +760,7 @@
             <button class="btn btn-sm" onclick="calToday()">今日</button>
           </div>
           <button id="ics-btn" class="btn btn-sm hidden" onclick="exportDayICS()">📅 ICS出力</button>
+          <button id="review-btn" class="btn btn-sm hidden" onclick="openReviewModal(dateStr(S.calDate))" title="振り返りを記録">📝</button>
         </div>
         <div id="calendar-container" class="calendar-container"></div>
       </div>
@@ -1233,6 +1234,22 @@
   </div>
 </div>
 
+<!-- Review -->
+<div id="modal-review" class="modal-overlay" onclick="if(event.target===this)closeAllModals()">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <span id="review-modal-title" class="modal-title">📝 振り返り</span>
+      <button class="modal-close" onclick="closeAllModals()">×</button>
+    </div>
+    <div id="review-modal-body" class="modal-body" style="max-height:70vh;overflow-y:auto"></div>
+    <div class="modal-footer">
+      <button id="review-ai-btn" class="btn btn-sm" onclick="getReviewAiAdvice()">🤖 AIアドバイス</button>
+      <button class="btn btn-primary" onclick="saveReviewFromModal()">保存</button>
+      <button class="btn" onclick="closeAllModals()">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast" class="toast"></div>
 
@@ -1268,6 +1285,7 @@ const S = {
   completions: [], // [{taskId, date}] — 繰り返しタスクの日付別完了ログ
   themes: { work: ['設備計画','導入','活用','人づくり','コミュ・雑務'], personal: [] },
   projects: [],         // Project[]
+  reviews:  [],         // Review[]
   filter: { status: 'active', category: 'all', date: 'today' },
   projectFilter: 'all', // 'all' | 'active' | 'waiting' | 'done'
   projectSort: 'priority', // 'priority' | 'due'
@@ -1295,6 +1313,7 @@ function loadAll() {
   if (th) S.themes = JSON.parse(th);
   S.blockTemplates = JSON.parse(localStorage.getItem('todo_block_templates') || '[]');
   S.projects       = JSON.parse(localStorage.getItem('todo_projects')        || '[]');
+  S.reviews        = JSON.parse(localStorage.getItem('todo_reviews')         || '[]');
   // 旧データ移行: blockId (単数) → blockIds (配列)
   S.tasks.forEach(t => {
     if (!Array.isArray(t.blockIds)) {
@@ -1363,6 +1382,7 @@ const saveThemes      = () => localStorage.setItem('todo_themes',      JSON.stri
 const saveCompletions     = () => localStorage.setItem('todo_completions',     JSON.stringify(S.completions));
 const saveBlockTemplates  = () => localStorage.setItem('todo_block_templates', JSON.stringify(S.blockTemplates));
 const saveProjects        = () => localStorage.setItem('todo_projects',        JSON.stringify(S.projects));
+const saveReviews         = () => localStorage.setItem('todo_reviews',         JSON.stringify(S.reviews));
 
 let _projectEditId = null; // null = 新規, 文字列 = 編集中プロジェクトID
 
@@ -1707,6 +1727,13 @@ function renderCalendar() {
   else                           renderDay(con);
 
   document.getElementById('ics-btn').classList.toggle('hidden', S.calView !== 'day');
+  // 振り返りボタン：日ビュー＋今日以前のみ表示
+  const ds   = dateStr(S.calDate);
+  const isDay = S.calView === 'day';
+  const isPastOrToday = ds <= today();
+  const reviewBtn = document.getElementById('review-btn');
+  reviewBtn.classList.toggle('hidden', !(isDay && isPastOrToday));
+  if (isDay && isPastOrToday) updateReviewBtn(ds);
   updateCalTitle();
 }
 
@@ -3708,6 +3735,237 @@ async function gistFindId() {
   }
 }
 
+// ──────────────────────────────────────────────
+//  REVIEW
+// ──────────────────────────────────────────────
+
+let _reviewDate     = null;  // 開いている振り返りの日付
+let _reviewItems    = [];    // UI上のアイテム配列
+let _reviewAiAdvice = null;  // AIアドバイス文字列
+
+function openReviewModal(ds) {
+  _reviewDate     = ds;
+  _reviewItems    = [];
+  _reviewAiAdvice = null;
+
+  document.getElementById('review-modal-title').textContent = `📝 ${ds} の振り返り`;
+
+  // ① 通常タスク（期日がその日）
+  const dueTasks = S.tasks.filter(t => t.dueDate === ds);
+  // ② 繰り返しタスク（その日が発生日 + 完了ログあり）
+  const recurringDone = S.tasks.filter(t =>
+    t.recurrence && isOccurrenceOnDate(t, ds) && isRecurringDone(t.id, ds)
+  );
+  // ③ 繰り返しタスク（その日が発生日 + 未完了）
+  const recurringUndone = S.tasks.filter(t =>
+    t.recurrence && isOccurrenceOnDate(t, ds) && !isRecurringDone(t.id, ds)
+  );
+
+  // 繰り返しタスクID（dueTasks との重複除去用）
+  const recurIds = new Set([...recurringDone, ...recurringUndone].map(t => t.id));
+  const doneList   = [...dueTasks.filter(t =>  t.completed && !recurIds.has(t.id)), ...recurringDone];
+  const undoneList = [...dueTasks.filter(t => !t.completed && !recurIds.has(t.id)), ...recurringUndone];
+
+  const existing = S.reviews.find(r => r.date === ds);
+  if (existing?.aiAdvice) _reviewAiAdvice = existing.aiAdvice;
+
+  [...doneList, ...undoneList].forEach(t => {
+    const parent  = t.parentId ? S.tasks.find(p => p.id === t.parentId) : null;
+    const exItem  = existing?.items?.find(i => i.taskId === t.id);
+    const isDone  = t.recurrence ? isRecurringDone(t.id, ds) : t.completed;
+    _reviewItems.push({
+      taskId:      t.id,
+      title:       t.title,
+      parentTitle: parent?.title || null,
+      recurrence:  t.recurrence  || null,
+      completed:   isDone,
+      result:      exItem?.result      || null,
+      comment:     exItem?.comment     || null,
+      commentFree: exItem?.commentFree || null,
+    });
+  });
+
+  renderReviewModal();
+  document.getElementById('modal-review').classList.add('open');
+}
+
+function renderReviewModal() {
+  const doneItems   = _reviewItems.filter(i => i.completed);
+  const undoneItems = _reviewItems.filter(i => !i.completed);
+
+  const goodOpts = ['よかった','予定通り','もう少しできた','その他'];
+  const badOpts  = ['時間がなかった','優先度を下げた','想定より難しかった','明日に持ち越し','その他'];
+
+  const renderItem = (item) => {
+    const idx = _reviewItems.indexOf(item);
+    const recurBadge = item.recurrence
+      ? `<span style="font-size:10px;color:var(--text-muted);margin-left:4px">🔁${recurLabel({recurrence:item.recurrence})}</span>` : '';
+    const parentLine = item.parentTitle
+      ? `<div style="font-size:10px;color:var(--text-muted);margin-top:2px">└─ ${h(item.parentTitle)}（親）</div>` : '';
+    const opts = item.result === 'good' ? goodOpts : item.result === 'bad' ? badOpts : [];
+    const commentSel = item.result ? `
+      <select onchange="setReviewComment(${idx}, this.value)"
+        style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:4px;font-family:inherit">
+        <option value="">― 選択 ―</option>
+        ${opts.map(o => `<option value="${o}" ${item.comment===o?'selected':''}>${o}</option>`).join('')}
+      </select>` : '';
+    const commentFreeInp = `
+      <input type="text" value="${h(item.commentFree||'')}" placeholder="ひとことメモ"
+        onchange="setReviewCommentFree(${idx}, this.value)"
+        style="flex:1;min-width:80px;padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:4px;font-family:inherit">`;
+    return `
+    <div style="border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:6px;background:var(--bg)">
+      <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:6px">
+        <div style="flex:1;min-width:0">
+          <span style="font-size:12px;font-weight:500">${h(item.title)}</span>${recurBadge}
+          ${parentLine}
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button onclick="setReviewResult(${idx},'good')"
+            style="padding:2px 8px;border-radius:4px;border:1px solid;font-size:12px;cursor:pointer;
+                   ${item.result==='good'?'background:var(--goal-done);color:#fff;border-color:var(--goal-done)':'background:var(--surface);color:var(--text-muted);border-color:var(--border)'}">○</button>
+          <button onclick="setReviewResult(${idx},'bad')"
+            style="padding:2px 8px;border-radius:4px;border:1px solid;font-size:12px;cursor:pointer;
+                   ${item.result==='bad'?'background:var(--high);color:#fff;border-color:var(--high)':'background:var(--surface);color:var(--text-muted);border-color:var(--border)'}">×</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        ${commentSel}
+        ${commentFreeInp}
+      </div>
+    </div>`;
+  };
+
+  const noTasks = _reviewItems.length === 0;
+  const existing = S.reviews.find(r => r.date === _reviewDate);
+
+  const aiSection = _reviewAiAdvice ? `
+    <div style="margin-top:10px;padding:10px 12px;background:#eff6ff;border-radius:6px;border:1px solid #bfdbfe">
+      <div style="font-size:11px;font-weight:600;color:var(--primary);margin-bottom:4px">🤖 AIアドバイス</div>
+      <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${h(_reviewAiAdvice)}</div>
+    </div>` : '';
+
+  document.getElementById('review-modal-body').innerHTML = `
+    ${noTasks ? '<div style="color:var(--text-muted);font-size:12px;margin-bottom:8px">期日のタスクがありません</div>' : `
+    <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:6px">✓ 完了</div>
+    ${doneItems.length ? doneItems.map(renderItem).join('') : '<div style="color:var(--text-muted);font-size:12px;margin-bottom:6px">なし</div>'}
+    <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin:10px 0 6px">✗ 未完了</div>
+    ${undoneItems.length ? undoneItems.map(renderItem).join('') : '<div style="color:var(--text-muted);font-size:12px;margin-bottom:6px">なし</div>'}
+    `}
+    <div style="margin-top:10px">
+      <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">一言メモ</label>
+      <textarea id="review-memo" rows="2" placeholder="今日の一言メモ..."
+        style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box">${h(existing?.memo||'')}</textarea>
+    </div>
+    ${aiSection}
+  `;
+}
+
+function setReviewResult(idx, result) {
+  // 同じボタンを押したらトグル解除
+  _reviewItems[idx].result  = _reviewItems[idx].result === result ? null : result;
+  _reviewItems[idx].comment = null;
+  renderReviewModal();
+}
+function setReviewComment(idx, val) {
+  _reviewItems[idx].comment = val || null;
+}
+function setReviewCommentFree(idx, val) {
+  _reviewItems[idx].commentFree = val || null;
+}
+
+function buildReviewPrompt(date, items, memo) {
+  const doneList = items.filter(i => i.completed)
+    .map(i => `・${i.title}（${i.result==='good'?'○':'×'}）${i.comment||''}${i.commentFree?'：'+i.commentFree:''}`)
+    .join('\n');
+  const undoneList = items.filter(i => !i.completed)
+    .map(i => `・${i.title}（${i.result==='bad'?'×':'未評価'}）${i.comment||''}${i.commentFree?'：'+i.commentFree:''}`)
+    .join('\n');
+  return `
+${date}の振り返りに対してアドバイスをください。
+
+【完了タスク】
+${doneList || 'なし'}
+
+【未完了タスク】
+${undoneList || 'なし'}
+
+【一言メモ】
+${memo || 'なし'}
+
+以下の観点で100〜150字程度でアドバイスをください：
+・よかった点を簡潔に認める
+・未完了タスクへの具体的なアドバイス
+・明日への一言
+`;
+}
+
+async function getReviewAiAdvice() {
+  const apiKey = localStorage.getItem('todo_gemini_api_key');
+  if (!apiKey) { alert('設定からGemini APIキーを入力してください'); return; }
+  const model = localStorage.getItem('todo_gemini_model') || 'gemini-2.0-flash';
+
+  const btn = document.getElementById('review-ai-btn');
+  btn.disabled = true;
+  btn.textContent = '🤖 生成中…';
+
+  const memo = document.getElementById('review-memo')?.value || '';
+  const prompt = buildReviewPrompt(_reviewDate, _reviewItems, memo);
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
+        }),
+      }
+    );
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    _reviewAiAdvice = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+    renderReviewModal();
+  } catch (e) {
+    showToast('AIアドバイスエラー: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🤖 AIアドバイス';
+  }
+}
+
+function saveReviewFromModal() {
+  const memo = document.getElementById('review-memo')?.value?.trim() || '';
+  const existing = S.reviews.findIndex(r => r.date === _reviewDate);
+  const review = {
+    id:        existing >= 0 ? S.reviews[existing].id : uuid(),
+    date:      _reviewDate,
+    items:     _reviewItems.map(({ taskId, title, parentTitle, completed, result, comment, commentFree }) =>
+                 ({ taskId, title, parentTitle, completed, result, comment, commentFree })),
+    memo,
+    aiAdvice:  _reviewAiAdvice || null,
+    createdAt: existing >= 0 ? S.reviews[existing].createdAt : new Date().toISOString(),
+  };
+  if (existing >= 0) S.reviews[existing] = review;
+  else               S.reviews.unshift(review);
+  saveReviews();
+  closeAllModals();
+  updateReviewBtn(_reviewDate);
+  showToast('✅ 振り返りを保存しました');
+}
+
+function updateReviewBtn(ds) {
+  const btn = document.getElementById('review-btn');
+  if (!btn) return;
+  const exists = S.reviews.some(r => r.date === ds);
+  btn.textContent = exists ? '📝✓' : '📝';
+  btn.style.color = exists ? 'var(--goal-done)' : '';
+  btn.title = exists ? '振り返り済み（クリックで編集）' : '振り返りを記録';
+}
+
+// ──────────────────────────────────────────────
 async function gistPush() {
   const token  = localStorage.getItem('todo_gist_token');
   const gistId = localStorage.getItem('todo_gist_id');
@@ -3717,6 +3975,7 @@ async function gistPush() {
     tasks: S.tasks, goals: S.goals, blocks: S.blocks,
     completions: S.completions, themes: S.themes,
     blockTemplates: S.blockTemplates, projects: S.projects,
+    reviews: S.reviews,
   }, null, 2);
 
   const payload = {
@@ -3771,7 +4030,8 @@ async function gistPull() {
     if (d.themes)         S.themes         = d.themes;
     if (d.blockTemplates) S.blockTemplates = d.blockTemplates;
     if (d.projects)       S.projects       = d.projects;
-    saveTasks(); saveGoals(); saveBlocks(); saveCompletions(); saveThemes(); saveBlockTemplates(); saveProjects();
+    if (d.reviews)        S.reviews        = d.reviews;
+    saveTasks(); saveGoals(); saveBlocks(); saveCompletions(); saveThemes(); saveBlockTemplates(); saveProjects(); saveReviews();
     localStorage.setItem('todo_last_saved', new Date().toISOString());
     hideSyncBanner();
     renderAll();
@@ -3829,7 +4089,7 @@ function exportDayICS() {
 // ──────────────────────────────────────────────
 function exportJSON() {
   const d = new Date();
-  const data = { tasks: S.tasks, goals: S.goals, blocks: S.blocks, completions: S.completions, themes: S.themes, projects: S.projects, exportedAt: d.toISOString() };
+  const data = { tasks: S.tasks, goals: S.goals, blocks: S.blocks, completions: S.completions, themes: S.themes, projects: S.projects, reviews: S.reviews, exportedAt: d.toISOString() };
   const json = JSON.stringify(data, null, 2);
   const filename = `todo_backup_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}.json`;
 
@@ -3986,8 +4246,9 @@ document.getElementById('import-file').addEventListener('change', e => {
       S.blocks      = data.blocks      || [];
       S.completions = data.completions || [];
       S.projects    = data.projects    || [];
+      S.reviews     = data.reviews     || [];
       if (data.themes) S.themes = data.themes;
-      saveTasks(); saveGoals(); saveBlocks(); saveCompletions(); saveThemes(); saveProjects();
+      saveTasks(); saveGoals(); saveBlocks(); saveCompletions(); saveThemes(); saveProjects(); saveReviews();
       renderAll();
       showToast('インポートしました');
     } catch { alert('不正なJSONファイルです'); }
