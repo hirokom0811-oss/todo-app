@@ -24,6 +24,40 @@ git push origin main
 | minor | 機能追加・既存機能の改善 | x.Y.0 |
 | patch | バグ修正 | x.y.Z |
 
+## ⚠️ 実装完了時の必須手順（省略禁止）
+
+実装が完了するたびに、以下を**必ずこの順番で**実行すること：
+
+### ステップ1：APP_VERSION を更新する
+`index.html` の `APP_VERSION` 定数を新しいバージョン番号に書き換える。
+
+```js
+const APP_VERSION = 'vX.Y.Z'; // ← 変更内容に応じて必ずインクリメント
+```
+
+- feat（機能追加）→ minor を +1（例: v1.2.1 → v1.3.0）
+- fix（バグ修正）→ patch を +1（例: v1.2.1 → v1.2.2）
+- 新タブ追加など大機能 → major を +1（例: v1.2.1 → v2.0.0）
+
+### ステップ2：コミット＆プッシュ
+```
+git add index.html
+git commit -m "feat/fix: [実装内容の日本語要約]"
+git push origin main
+```
+
+### ステップ3：タグを付けてプッシュ
+```
+git tag vX.Y.Z
+git push origin main --tags
+```
+
+- タグ名は `APP_VERSION` と**必ず一致**させること
+- ステップ2のコミット後に実行すること
+
+> **重要**: `APP_VERSION` の更新を忘れると過去の変更が積み残しになる。
+> 1実装 = 1バージョンアップ を徹底すること。
+
 ## index.html への記載
 
 `index.html` の `<script>` ブロック先頭付近に以下を定義すること：
