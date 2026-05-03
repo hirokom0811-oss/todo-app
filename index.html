@@ -1271,7 +1271,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.2.1';
+const APP_VERSION = 'v1.3.0';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -3794,6 +3794,7 @@ function openReviewModal(ds) {
       parentTitle: parent?.title || null,
       recurrence:  t.recurrence  || null,
       completed:   isDone,
+      goalId:      t.goalId || null,
       result:      exItem?.result      || null,
       comment:     exItem?.comment     || null,
       commentFree: exItem?.commentFree || null,
@@ -3890,20 +3891,38 @@ function setReviewCommentFree(idx, val) {
 }
 
 function buildReviewPrompt(date, items, memo) {
-  const doneList = items.filter(i => i.completed)
-    .map(i => `・${i.title}（${i.result==='good'?'○':'×'}）${i.comment||''}${i.commentFree?'：'+i.commentFree:''}`)
-    .join('\n');
-  const undoneList = items.filter(i => !i.completed)
-    .map(i => `・${i.title}（${i.result==='bad'?'×':'未評価'}）${i.comment||''}${i.commentFree?'：'+i.commentFree:''}`)
-    .join('\n');
+  const fmtItem = i => {
+    const mark    = i.completed ? '○' : '×';
+    const comment = [i.comment, i.commentFree ? '：' + i.commentFree : ''].filter(Boolean).join('');
+    const goal    = i.goalId ? S.goals.find(g => g.id === i.goalId) : null;
+    const goalLine = goal ? `\n  🎯 ${goal.title}` : '';
+    return `・${i.title}（${mark}）${comment}${goalLine}`;
+  };
+
+  const doneList   = items.filter(i =>  i.completed).map(fmtItem).join('\n') || 'なし';
+  const undoneList = items.filter(i => !i.completed).map(fmtItem).join('\n') || 'なし';
+
+  const gids = [...new Set(items.map(i => i.goalId).filter(Boolean))];
+  const statusMap = { notStarted: '未着手', inProgress: '進行中', done: '達成' };
+  const goalProgress = gids.map(gid => {
+    const goal = S.goals.find(g => g.id === gid);
+    if (!goal) return null;
+    const goalTasks = S.tasks.filter(t => t.goalId === gid);
+    const doneCnt   = goalTasks.filter(t => isTaskDone(t)).length;
+    return `・${goal.title}（${statusMap[goal.status] || goal.status}）タスク進捗：${doneCnt}/${goalTasks.length}件`;
+  }).filter(Boolean).join('\n') || 'なし';
+
   return `
-${date}の振り返りに対してアドバイスをください。
+${date}の振り返りです。
 
 【完了タスク】
-${doneList || 'なし'}
+${doneList}
 
 【未完了タスク】
-${undoneList || 'なし'}
+${undoneList}
+
+【関連するやること100の進捗】
+${goalProgress}
 
 【一言メモ】
 ${memo || 'なし'}
@@ -3911,6 +3930,7 @@ ${memo || 'なし'}
 以下の観点で100〜150字程度でアドバイスをください：
 ・よかった点を簡潔に認める
 ・未完了タスクへの具体的なアドバイス
+・やること100の目標進捗を踏まえた一言
 ・明日への一言
 `;
 }
