@@ -4293,10 +4293,9 @@ document.getElementById('import-file').addEventListener('change', e => {
       S.projects    = data.projects    || [];
       S.reviews     = data.reviews     || [];
       if (data.themes) S.themes = data.themes;
-      const fixed = migrateHabitTaskDates(S.tasks, S.goals);
       saveTasks(); saveGoals(); saveBlocks(); saveCompletions(); saveThemes(); saveProjects(); saveReviews();
       renderAll();
-      showToast(fixed ? `インポートしました（習慣タスク ${fixed}件の日付を自動修正）` : 'インポートしました');
+      showToast('インポートしました');
     } catch { alert('不正なJSONファイルです'); }
   };
   reader.readAsText(file);
