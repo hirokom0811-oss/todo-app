@@ -1241,7 +1241,7 @@
       <span id="review-modal-title" class="modal-title">📝 振り返り</span>
       <button class="modal-close" onclick="closeAllModals()">×</button>
     </div>
-    <div id="review-modal-body" class="modal-body" style="max-height:70vh;overflow-y:auto"></div>
+    <div id="review-modal-body" class="modal-body"></div>
     <div class="modal-footer">
       <button id="review-ai-btn" class="btn btn-sm" onclick="getReviewAiAdvice()">🤖 AIアドバイス</button>
       <button class="btn btn-primary" onclick="saveReviewFromModal()">保存</button>
@@ -3857,7 +3857,7 @@ function renderReviewModal() {
   const aiSection = _reviewAiAdvice ? `
     <div style="margin-top:10px;padding:10px 12px;background:#eff6ff;border-radius:6px;border:1px solid #bfdbfe">
       <div style="font-size:11px;font-weight:600;color:var(--primary);margin-bottom:4px">🤖 AIアドバイス</div>
-      <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${h(_reviewAiAdvice)}</div>
+      <div style="font-size:12px;line-height:1.7">${h(_reviewAiAdvice).replace(/\n/g,'<br>')}</div>
     </div>` : '';
 
   document.getElementById('review-modal-body').innerHTML = `
