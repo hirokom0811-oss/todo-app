@@ -3079,15 +3079,13 @@ function buildDecomposePrompt(goal) {
     return base + `この習慣を継続するために、1ヶ月単位の繰り返しタスクを12ヶ月分提案してください。
 各タスクは「${goal.title}（1月）」のような形式で月ごとに1件ずつ、合計12件作成してください。
 各タスクのJSONには必ず以下のフィールドをすべて含めてください：
+- month: 月番号（1〜12の整数）
 - recurrence: "daily"（毎日習慣の場合）または "weekly"（週次習慣の場合）
-- scheduledDate: その月の1日（例："2026-01-01"）
-- recurrenceEnd: その月の末日（例："2026-01-31"）
 例：
 {
   "title": "${goal.title}（1月）",
+  "month": 1,
   "recurrence": "daily",
-  "scheduledDate": "2026-01-01",
-  "recurrenceEnd": "2026-01-31",
   "priority": "medium",
   "scale": "small"
 }`;
@@ -3241,6 +3239,15 @@ function addSelectedAiTasks(tasks, goalId) {
   indices.forEach(i => {
     const t = tasks[i];
     if (!t) return;
+    let scheduledDate = t.scheduledDate || null;
+    let recurrenceEnd = t.recurrenceEnd || null;
+    if (t.month) {
+      const year  = new Date().getFullYear();
+      const mm    = String(t.month).padStart(2, '0');
+      scheduledDate = `${year}-${mm}-01`;
+      const lastDay = new Date(year, t.month, 0).getDate();
+      recurrenceEnd = `${year}-${mm}-${String(lastDay).padStart(2, '0')}`;
+    }
     addTask({
       title:          t.title,
       category,
@@ -3248,8 +3255,8 @@ function addSelectedAiTasks(tasks, goalId) {
       scale:          ['large','medium','small'].includes(t.scale)  ? t.scale  : 'medium',
       theme:          t.theme || null,
       recurrence:     ['daily','weekday','weekly'].includes(t.recurrence) ? t.recurrence : null,
-      scheduledDate:  t.scheduledDate || null,
-      recurrenceEnd:  t.recurrenceEnd || null,
+      scheduledDate,
+      recurrenceEnd,
       memo:           t.memo || null,
       goalId,
     });
