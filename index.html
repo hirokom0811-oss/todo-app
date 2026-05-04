@@ -741,7 +741,7 @@
           <button class="filter-chip active" data-ft="date" data-fv="today">📅 今日</button>
           <button class="filter-chip" data-ft="date" data-fv="month">📅 今月</button>
           <div class="filter-sep"></div>
-          <div id="filter-goals" style="display:contents"></div>
+          <div id="filter-goals"></div>
         </div>
 
         <div id="task-list" class="task-list"></div>
@@ -1273,7 +1273,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.5.0';
+const APP_VERSION = 'v1.5.2';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -1679,16 +1679,14 @@ function renderGoalFilterButtons() {
   if (!container) return;
   const buttons = buildGoalFilterButtons();
   if (buttons.length <= 1) { container.innerHTML = ''; return; }
-  container.innerHTML = buttons.map(btn => `
-    <button class="filter-chip ${S.filter.goalId === btn.id ? 'active' : ''}"
-      onclick="setGoalFilter(${btn.id ? `'${btn.id}'` : 'null'})"
-    >${h(btn.label)}</button>
-  `).join('');
+  container.innerHTML = `<select onchange="setGoalFilter(this.value)"
+    style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer">
+    ${buttons.map(btn => `<option value="${btn.id || 'null'}" ${S.filter.goalId === btn.id ? 'selected' : ''}>${h(btn.label)}</option>`).join('')}
+  </select>`;
 }
 
 function setGoalFilter(goalId) {
-  S.filter.goalId = goalId === null || goalId === 'null' ? null : goalId;
-  renderGoalFilterButtons();
+  S.filter.goalId = goalId === 'null' ? null : goalId;
   renderTodoList();
 }
 
