@@ -62,7 +62,7 @@ git push origin main --tags
 
 `index.html` の `<script>` ブロック先頭付近に以下を定義すること：
 ```js
-const APP_VERSION = 'v1.5.2';
+const APP_VERSION = 'v1.5.3';
 ```
 
 バージョンはヘッダーUIに表示すること（例：アプリ名の右横に小さく表示）。
