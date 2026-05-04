@@ -742,6 +742,10 @@
           <button class="filter-chip active" data-ft="date" data-fv="today">📅 今日</button>
           <button class="filter-chip" data-ft="date" data-fv="month">📅 今月</button>
           <div class="filter-sep"></div>
+          <button class="filter-chip active" data-ft="block" data-fv="all">枠の有無</button>
+          <button class="filter-chip" data-ft="block" data-fv="unplanned">未計画</button>
+          <button class="filter-chip" data-ft="block" data-fv="planned">計画済み</button>
+          <div class="filter-sep"></div>
           <div id="filter-goals"></div>
         </div>
 
@@ -1278,7 +1282,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.6.1';
+const APP_VERSION = 'v1.6.2';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -1293,7 +1297,7 @@ const S = {
   themes: { work: ['設備計画','導入','活用','人づくり','コミュ・雑務'], personal: [] },
   projects: [],         // Project[]
   reviews:  [],         // Review[]
-  filter: { status: 'active', category: 'all', date: 'today', goalId: null },
+  filter: { status: 'active', category: 'all', date: 'today', goalId: null, block: 'all' },
   projectFilter: 'all', // 'all' | 'active' | 'waiting' | 'done'
   projectSort: 'priority', // 'priority' | 'due'
   calView: 'day',
@@ -1708,6 +1712,9 @@ function renderTodoList() {
   if (status === 'completed') tasks = tasks.filter(t =>  isTaskDone(t));
   if (category !== 'all')     tasks = tasks.filter(t => t.category === category);
   if (S.filter.goalId !== null) tasks = tasks.filter(t => t.goalId === S.filter.goalId);
+  const blk = S.filter.block;
+  if (blk === 'planned')   tasks = tasks.filter(t => (t.blockIds||[]).length > 0);
+  if (blk === 'unplanned') tasks = tasks.filter(t => (t.blockIds||[]).length === 0);
   if (date === 'today')       tasks = tasks.filter(t => {
     if (t.dueDate === tod) return true;
     if (t.scheduledDate === tod) return true;
