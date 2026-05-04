@@ -1271,7 +1271,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.3.0';
+const APP_VERSION = 'v1.4.0';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -1375,14 +1375,32 @@ async function checkGistSync() {
   }
 }
 
-const saveTasks       = () => localStorage.setItem('todo_tasks',       JSON.stringify(S.tasks));
-const saveGoals       = () => localStorage.setItem('todo_goals',       JSON.stringify(S.goals));
-const saveBlocks      = () => localStorage.setItem('todo_blocks',      JSON.stringify(S.blocks));
-const saveThemes      = () => localStorage.setItem('todo_themes',      JSON.stringify(S.themes));
-const saveCompletions     = () => localStorage.setItem('todo_completions',     JSON.stringify(S.completions));
-const saveBlockTemplates  = () => localStorage.setItem('todo_block_templates', JSON.stringify(S.blockTemplates));
-const saveProjects        = () => localStorage.setItem('todo_projects',        JSON.stringify(S.projects));
-const saveReviews         = () => localStorage.setItem('todo_reviews',         JSON.stringify(S.reviews));
+let _localDirty = false;
+function markDirty() {
+  _localDirty = true;
+  const token  = localStorage.getItem('todo_gist_token');
+  const gistId = localStorage.getItem('todo_gist_id');
+  if (!token || !gistId) return;
+  const banner = document.getElementById('sync-banner');
+  if (!banner || banner.className === 'banner-push') return;
+  banner.className = 'banner-push';
+  banner.style.display = 'flex';
+  banner.innerHTML = `
+    <span class="banner-msg">💾 未保存のデータがあります</span>
+    <div class="banner-actions">
+      <button class="btn btn-sm btn-primary" onclick="gistPush()">☁️ 今すぐ保存</button>
+      <button class="btn btn-sm" onclick="hideSyncBanner()">あとで</button>
+    </div>`;
+}
+
+const saveTasks           = () => { localStorage.setItem('todo_tasks',           JSON.stringify(S.tasks));           markDirty(); };
+const saveGoals           = () => { localStorage.setItem('todo_goals',           JSON.stringify(S.goals));           markDirty(); };
+const saveBlocks          = () => { localStorage.setItem('todo_blocks',          JSON.stringify(S.blocks));          markDirty(); };
+const saveThemes          = () => { localStorage.setItem('todo_themes',          JSON.stringify(S.themes));          markDirty(); };
+const saveCompletions     = () => { localStorage.setItem('todo_completions',     JSON.stringify(S.completions));     markDirty(); };
+const saveBlockTemplates  = () => { localStorage.setItem('todo_block_templates', JSON.stringify(S.blockTemplates));  markDirty(); };
+const saveProjects        = () => { localStorage.setItem('todo_projects',        JSON.stringify(S.projects));        markDirty(); };
+const saveReviews         = () => { localStorage.setItem('todo_reviews',         JSON.stringify(S.reviews));         markDirty(); };
 
 let _projectEditId = null; // null = 新規, 文字列 = 編集中プロジェクトID
 
@@ -4033,6 +4051,7 @@ async function gistPush() {
     const data = await res.json();
     if (!gistId) localStorage.setItem('todo_gist_id', data.id);
     localStorage.setItem('todo_last_saved', new Date().toISOString());
+    _localDirty = false;
     hideSyncBanner();
     showToast('☁️ クラウドに保存しました');
     renderSettings();
@@ -4068,6 +4087,7 @@ async function gistPull() {
     if (d.reviews)        S.reviews        = d.reviews;
     saveTasks(); saveGoals(); saveBlocks(); saveCompletions(); saveThemes(); saveBlockTemplates(); saveProjects(); saveReviews();
     localStorage.setItem('todo_last_saved', new Date().toISOString());
+    _localDirty = false;
     hideSyncBanner();
     renderAll();
     showToast('☁️ クラウドから読み込みました');
@@ -4315,6 +4335,7 @@ document.getElementById('import-file').addEventListener('change', e => {
       if (data.themes) S.themes = data.themes;
       const fixed = migrateHabitTaskDates(S.tasks, S.goals);
       saveTasks(); saveGoals(); saveBlocks(); saveCompletions(); saveThemes(); saveProjects(); saveReviews();
+      _localDirty = false;
       renderAll();
       showToast(fixed ? `インポートしました（習慣タスク ${fixed}件の日付を自動修正）` : 'インポートしました');
     } catch { alert('不正なJSONファイルです'); }
@@ -4759,6 +4780,12 @@ function init() {
 }
 
 init();
+
+window.addEventListener('beforeunload', e => {
+  if (!_localDirty) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 </script>
 </body>
 </html>
