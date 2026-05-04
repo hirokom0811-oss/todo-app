@@ -4703,7 +4703,7 @@ function showPage(page) {
   document.getElementById(`page-${page}`).classList.add('active');
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.page===page));
   if (page==='goals')    renderGoalGrid();
-  if (page==='todo')     { renderTodoList(); renderCalendar(); }
+  if (page==='todo')     { renderGoalFilterButtons(); renderTodoList(); renderCalendar(); }
   if (page==='projects') renderProjectList();
 }
 
