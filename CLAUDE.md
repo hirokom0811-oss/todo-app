@@ -62,7 +62,7 @@ git push origin main --tags
 
 `index.html` の `<script>` ブロック先頭付近に以下を定義すること：
 ```js
-const APP_VERSION = 'v1.4.0';
+const APP_VERSION = 'v1.5.0';
 ```
 
 バージョンはヘッダーUIに表示すること（例：アプリ名の右横に小さく表示）。
@@ -284,7 +284,7 @@ const S = {
   themes: { work: ['設備計画','導入','活用','人づくり','コミュ・雑務'], personal: [] },
   projects: [],           // Project[]
   reviews:  [],           // Review[]
-  filter: { status: 'active', category: 'all', date: 'today' },
+  filter: { status: 'active', category: 'all', date: 'today', goalId: null }, // null = Goal フィルター無効
   projectFilter: 'all',   // 'all' | 'active' | 'waiting' | 'done'
   projectSort: 'priority',// 'priority' | 'due'
   calView: 'day',         // 'day' | 'week' | 'month'
@@ -392,6 +392,14 @@ let _localDirty         = false; // データ変更後Gist未保存フラグ
 | `decomposeProject(projectId)` | AI でプロジェクトをタスクに分解（Gemini API） |
 | `addSelectedAiTasksForProject(tasks, project)` | AI提案タスクを選択してTODOに追加 |
 | `suggestProjects()` | 今週注力すべきプロジェクトをAIが提案 |
+
+### 目標フィルター
+
+| 関数 | 説明 |
+|------|------|
+| `buildGoalFilterButtons()` | タスクから参照されているGoalのみ抽出し、ボタン定義配列を返す |
+| `renderGoalFilterButtons()` | `#filter-goals` に目標フィルターボタンを描画。Goalが1件以下なら非表示 |
+| `setGoalFilter(goalId)` | `S.filter.goalId` をセットして再描画。`null` でフィルター解除 |
 
 ### テーマ管理
 
