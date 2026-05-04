@@ -359,6 +359,7 @@
     .goal-type-badge.achievement { background: #dbeafe; color: #1d4ed8; }
     .goal-type-badge.habit       { background: #d1fae5; color: #065f46; }
     .goal-type-badge.explore     { background: #fed7aa; color: #9a3412; }
+    .goal-type-badge.dormant     { background: #e2e8f0; color: #475569; }
     /* ── Project Page ── */
     .project-page { padding: 12px; max-width: 800px; margin: 0 auto; }
     .project-page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
@@ -1189,6 +1190,10 @@
             <input type="radio" name="add-goal-type" value="explore" onchange="onGoalTypeChange('add-goal')">
             <div><div class="goal-type-name">探索型</div><div class="goal-type-desc">やりながら進め方を決めていくもの</div></div>
           </label>
+          <label class="goal-type-option">
+            <input type="radio" name="add-goal-type" value="dormant" onchange="onGoalTypeChange('add-goal')">
+            <div><div class="goal-type-name">休止型</div><div class="goal-type-desc">今は進めないが将来やる予定</div></div>
+          </label>
         </div>
       </div>
       <div class="form-group mb8" id="add-goal-progress-note-group" style="display:none">
@@ -1273,7 +1278,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.5.3';
+const APP_VERSION = 'v1.6.0';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -2150,8 +2155,8 @@ function renderGoalGrid() {
     for (let i=1; i<=gridEnd; i++) {
       const g = map.get(i);
       if (g) {
-        const typeBadgeLabel = {achievement:'達成',habit:'習慣',explore:'探索'};
-        html += `<div class="goal-cell ${g.status}" onclick="openGoalDetail('${g.id}')">
+        const typeBadgeLabel = {achievement:'達成',habit:'習慣',explore:'探索',dormant:'休止'};
+        html += `<div class="goal-cell ${g.status}" style="${g.type==='dormant'?'opacity:0.6;':''}" onclick="openGoalDetail('${g.id}')">
           <div class="goal-cell-num">${i}</div>
           <div class="goal-cell-title">${h(g.title)}</div>
           ${g.type ? `<div class="goal-type-badge ${g.type}">${typeBadgeLabel[g.type]||''}</div>` : ''}
@@ -2181,10 +2186,13 @@ function renderGoalByGroup() {
   const STATUS_LABEL = { notStarted: '未着手', planning: '計画中', inProgress: '進行中', done: '達成' };
   const STATUS_BADGE = { notStarted: 'ns-b', planning: 'plan-b', inProgress: 'prog-b', done: 'done-b' };
 
-  // Group: category → theme → goals[]
+  // Group: category → theme → goals[] (dormant goals separated)
+  const dormantGoals = S.goals.filter(g => g.type === 'dormant');
+  const activeGoals  = S.goals.filter(g => g.type !== 'dormant');
+
   const CAT_ORDER = ['仕事', '個人', 'その他'];
   const catMap = new Map();
-  for (const g of S.goals) {
+  for (const g of activeGoals) {
     const cat   = g.category || 'その他';
     const theme = g.theme    || '（テーマなし）';
     if (!catMap.has(cat)) catMap.set(cat, new Map());
@@ -2197,7 +2205,7 @@ function renderGoalByGroup() {
   const cats = [...CAT_ORDER.filter(c => catMap.has(c)),
                 ...[...catMap.keys()].filter(c => !CAT_ORDER.includes(c))];
 
-  if (cats.length === 0) {
+  if (cats.length === 0 && dormantGoals.length === 0) {
     html = `<div style="color:var(--text-muted);text-align:center;padding:40px;font-size:13px">目標がまだありません。<br>「＋ 目標を追加」から登録してください。</div>`;
     con.innerHTML = html;
     return;
@@ -2240,6 +2248,25 @@ function renderGoalByGroup() {
       html += `</div>`; // goal-group-theme
     }
     html += `</div>`; // goal-group-cat
+  }
+
+  // 休止中セクション
+  if (dormantGoals.length > 0) {
+    html += `<div class="goal-group-cat">
+      <div class="goal-group-cat-header">
+        <span>💤 休止中</span>
+        <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:auto">${dormantGoals.length}件</span>
+      </div>
+      <div class="goal-group-theme">`;
+    for (const g of dormantGoals.slice().sort((a,b)=>a.number-b.number)) {
+      html += `<div class="goal-list-item notStarted" style="opacity:0.6" onclick="openGoalDetail('${g.id}')">
+        <span class="goal-list-num">#${g.number}</span>
+        <span class="goal-list-status">○</span>
+        <span class="goal-list-title">${h(g.title)}</span>
+        <span class="goal-type-badge dormant">休止</span>
+      </div>`;
+    }
+    html += `</div></div>`;
   }
 
   con.innerHTML = html;
@@ -2926,7 +2953,7 @@ function openGoalDetail(id) {
     <div style="padding:4px 0 8px">
       <div style="font-size:12px;font-weight:500;margin-bottom:6px">種類 <span style="font-size:11px;color:var(--text-muted);font-weight:400">(任意)</span></div>
       <div class="goal-type-group">
-        ${[['achievement','達成型','明確なゴールがあり、達成したら完了するもの'],['habit','習慣型','繰り返しで積み上げていくもの'],['explore','探索型','やりながら進め方を決めていくもの']].map(([v,name,desc]) => `
+        ${[['achievement','達成型','明確なゴールがあり、達成したら完了するもの'],['habit','習慣型','繰り返しで積み上げていくもの'],['explore','探索型','やりながら進め方を決めていくもの'],['dormant','休止型','今は進めないが将来やる予定']].map(([v,name,desc]) => `
           <label class="goal-type-option">
             <input type="radio" name="gd-type" value="${v}" ${g.type===v?'checked':''} onchange="onGoalTypeChange('gd')">
             <div><div class="goal-type-name">${name}</div><div class="goal-type-desc">${desc}</div></div>
@@ -2940,7 +2967,7 @@ function openGoalDetail(id) {
     </div>
     <div class="detail-row">
       <span class="detail-label">ステータス</span>
-      <select id="gd-status" style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit">
+      <select id="gd-status" ${g.type==='dormant'?'disabled':''} style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit" onchange="if(document.querySelector('input[name=gd-type]:checked')?.value==='dormant'){alert('休止中のGoalは変更できません');this.value='notStarted';return false;}">
         <option value="notStarted" ${g.status==='notStarted'?'selected':''}>未着手</option>
         <option value="planning"   ${g.status==='planning'?'selected':''}>計画中</option>
         <option value="inProgress" ${g.status==='inProgress'?'selected':''}>進行中</option>
@@ -3156,6 +3183,11 @@ function buildDecomposePrompt(goal) {
 async function decomposeGoal(goalId) {
   const g = S.goals.find(g => g.id === goalId);
   if (!g) return;
+
+  if (g.type === 'dormant') {
+    showToast('休止中のGoalは後で準備ができたときに相談してください');
+    return;
+  }
 
   const apiKey = localStorage.getItem('todo_gemini_api_key') || '';
   if (!apiKey) {
@@ -3383,21 +3415,34 @@ function onGoalTypeChange(prefix) {
   const checked = document.querySelector(`input[name="${prefix}-type"]:checked`);
   const group   = document.getElementById(`${prefix}-progress-note-group`);
   if (group) group.style.display = checked?.value === 'explore' ? '' : 'none';
+
+  const statusSel = document.getElementById(`${prefix}-status`);
+  if (statusSel) {
+    if (checked?.value === 'dormant') {
+      if (statusSel.value !== 'notStarted') {
+        alert('休止中のGoalはステータスを「未着手」に固定します');
+        statusSel.value = 'notStarted';
+      }
+      statusSel.disabled = true;
+    } else {
+      statusSel.disabled = false;
+    }
+  }
 }
 
 function buildSuggestPrompt(goals) {
   const today = new Date();
   const month = today.getMonth() + 1;
   const notStarted = goals
-    .filter(g => g.status === 'notStarted')
+    .filter(g => g.status === 'notStarted' && g.type !== 'dormant')
     .map(g => `- [${g.number}] ${h(g.title)}（${g.type || '未設定'}）状況：${g.progressNote || 'なし'}`)
     .join('\n');
   const planningList = goals
-    .filter(g => g.status === 'planning')
+    .filter(g => g.status === 'planning' && g.type !== 'dormant')
     .map(g => `- [${g.number}] ${h(g.title)}（${g.type || '未設定'}）状況：${g.progressNote || 'なし'}`)
     .join('\n');
   const inProgress = goals
-    .filter(g => g.status === 'inProgress')
+    .filter(g => g.status === 'inProgress' && g.type !== 'dormant')
     .map(g => `- [${g.number}] ${h(g.title)}（${g.type || '未設定'}）状況：${g.progressNote || 'なし'}`)
     .join('\n');
 
