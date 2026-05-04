@@ -1278,7 +1278,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.6.0';
+const APP_VERSION = 'v1.6.1';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -1700,9 +1700,11 @@ function renderTodoList() {
   const tod = today();
   const thisMonth = tod.slice(0, 7); // "YYYY-MM"
   let tasks = S.tasks.filter(t => !t.parentId);
-  // 繰り返しタスクの「active/completed」はすべての発生日完了 or t.completed（強制完了）で判定する
-  // 個別日付のチェックは完了ログに記録されるが、TODO一覧の完了扱いには影響しない
-  if (status === 'active')    tasks = tasks.filter(t => !isTaskDone(t));
+  // 繰り返しタスク：今日の発生分が完了済みなら未完了フィルターで非表示
+  if (status === 'active')    tasks = tasks.filter(t => {
+    if (t.recurrence && !t.completed && isRecurringDone(t.id, tod)) return false;
+    return !isTaskDone(t);
+  });
   if (status === 'completed') tasks = tasks.filter(t =>  isTaskDone(t));
   if (category !== 'all')     tasks = tasks.filter(t => t.category === category);
   if (S.filter.goalId !== null) tasks = tasks.filter(t => t.goalId === S.filter.goalId);
