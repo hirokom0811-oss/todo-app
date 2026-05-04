@@ -740,6 +740,8 @@
           <button class="filter-chip" data-ft="date" data-fv="all">全期間</button>
           <button class="filter-chip active" data-ft="date" data-fv="today">📅 今日</button>
           <button class="filter-chip" data-ft="date" data-fv="month">📅 今月</button>
+          <div class="filter-sep"></div>
+          <div id="filter-goals" style="display:contents"></div>
         </div>
 
         <div id="task-list" class="task-list"></div>
@@ -1271,7 +1273,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.4.0';
+const APP_VERSION = 'v1.5.0';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -1286,7 +1288,7 @@ const S = {
   themes: { work: ['設備計画','導入','活用','人づくり','コミュ・雑務'], personal: [] },
   projects: [],         // Project[]
   reviews:  [],         // Review[]
-  filter: { status: 'active', category: 'all', date: 'today' },
+  filter: { status: 'active', category: 'all', date: 'today', goalId: null },
   projectFilter: 'all', // 'all' | 'active' | 'waiting' | 'done'
   projectSort: 'priority', // 'priority' | 'due'
   calView: 'day',
@@ -1657,6 +1659,39 @@ const STATUS_LABEL   = { notStarted:'未着手', planning:'計画中', inProgres
 // ──────────────────────────────────────────────
 //  RENDER: TODO LIST
 // ──────────────────────────────────────────────
+function buildGoalFilterButtons() {
+  const goalIds = [...new Set(
+    S.tasks.filter(t => t.parentId === null && t.goalId !== null).map(t => t.goalId)
+  )];
+  return [
+    { id: null, label: 'すべて' },
+    ...goalIds.map(gid => {
+      const goal = S.goals.find(g => g.id === gid);
+      if (!goal) return null;
+      const short = goal.title.length > 12 ? goal.title.substring(0, 12) + '…' : goal.title;
+      return { id: gid, label: `🎯#${goal.number} ${short}` };
+    }).filter(Boolean),
+  ];
+}
+
+function renderGoalFilterButtons() {
+  const container = document.getElementById('filter-goals');
+  if (!container) return;
+  const buttons = buildGoalFilterButtons();
+  if (buttons.length <= 1) { container.innerHTML = ''; return; }
+  container.innerHTML = buttons.map(btn => `
+    <button class="filter-chip ${S.filter.goalId === btn.id ? 'active' : ''}"
+      onclick="setGoalFilter(${btn.id ? `'${btn.id}'` : 'null'})"
+    >${h(btn.label)}</button>
+  `).join('');
+}
+
+function setGoalFilter(goalId) {
+  S.filter.goalId = goalId === null || goalId === 'null' ? null : goalId;
+  renderGoalFilterButtons();
+  renderTodoList();
+}
+
 function renderTodoList() {
   const { status, category, date } = S.filter;
   const tod = today();
@@ -1667,6 +1702,7 @@ function renderTodoList() {
   if (status === 'active')    tasks = tasks.filter(t => !isTaskDone(t));
   if (status === 'completed') tasks = tasks.filter(t =>  isTaskDone(t));
   if (category !== 'all')     tasks = tasks.filter(t => t.category === category);
+  if (S.filter.goalId !== null) tasks = tasks.filter(t => t.goalId === S.filter.goalId);
   if (date === 'today')       tasks = tasks.filter(t => {
     if (t.dueDate === tod) return true;
     if (t.scheduledDate === tod) return true;
@@ -2354,6 +2390,7 @@ function confirmDeleteProject(id) {
 //  RENDER ALL
 // ──────────────────────────────────────────────
 function renderAll() {
+  renderGoalFilterButtons();
   renderTodoList();
   renderCalendar();
   renderGoalGrid();
