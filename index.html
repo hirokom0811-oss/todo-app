@@ -1273,7 +1273,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.5.2';
+const APP_VERSION = 'v1.5.3';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -1661,7 +1661,7 @@ const STATUS_LABEL   = { notStarted:'未着手', planning:'計画中', inProgres
 // ──────────────────────────────────────────────
 function buildGoalFilterButtons() {
   const goalIds = [...new Set(
-    S.tasks.filter(t => t.parentId === null && t.goalId !== null).map(t => t.goalId)
+    S.tasks.filter(t => !t.parentId && t.goalId).map(t => t.goalId)
   )];
   return [
     { id: null, label: 'すべて' },
