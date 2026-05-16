@@ -3962,16 +3962,19 @@ function openReviewModal(ds) {
 
   document.getElementById('review-modal-title').textContent = `📝 ${ds} の振り返り`;
 
+  // 習慣型GoalのIDセット（habitItemとして別途表示するのでtaskから除外）
+  const habitGoalIds = new Set(S.goals.filter(g => g.type === 'habit').map(g => g.id));
+
   // ① 通常タスク（期日がその日）
-  const dueTasks = S.tasks.filter(t => t.dueDate === ds);
+  const dueTasks = S.tasks.filter(t => t.dueDate === ds && !habitGoalIds.has(t.goalId));
   // ② 繰り返しタスク（completionsログに記録あり = その日に実施した事実が確定）
   // isOccurrenceOnDate は不要。ログの存在が唯一の根拠。
   const recurringDone = S.tasks.filter(t =>
-    t.recurrence && isRecurringDone(t.id, ds)
+    t.recurrence && isRecurringDone(t.id, ds) && !habitGoalIds.has(t.goalId)
   );
   // ③ 繰り返しタスク（その日が発生日 + 未完了）
   const recurringUndone = S.tasks.filter(t =>
-    t.recurrence && isOccurrenceOnDate(t, ds) && !isRecurringDone(t.id, ds)
+    t.recurrence && isOccurrenceOnDate(t, ds) && !isRecurringDone(t.id, ds) && !habitGoalIds.has(t.goalId)
   );
 
   // 繰り返しタスクID（dueTasks との重複除去用）
