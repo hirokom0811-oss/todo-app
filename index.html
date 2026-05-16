@@ -1205,6 +1205,29 @@
         <textarea id="add-goal-progress-note" placeholder="例：現在120人。ビール特集が好評だった"
           style="width:100%;min-height:60px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
       </div>
+      <div class="form-group mb8" id="add-goal-frequency-group" style="display:none">
+        <label>頻度</label>
+        <select id="add-goal-frequency" onchange="onGoalFrequencyChange('add-goal')"
+          style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit">
+          <option value="daily">毎日</option>
+          <option value="weekly">週次</option>
+          <option value="monthly">月次</option>
+        </select>
+        <div id="add-goal-weekday-group" style="display:none;margin-top:6px">
+          <label style="font-size:11px;color:var(--text-muted)">曜日</label>
+          <select id="add-goal-weekday"
+            style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:inherit;margin-left:4px">
+            <option value="0">日</option><option value="1">月</option><option value="2">火</option>
+            <option value="3">水</option><option value="4">木</option><option value="5">金</option>
+            <option value="6">土</option>
+          </select>
+        </div>
+        <div id="add-goal-monthday-group" style="display:none;margin-top:6px">
+          <label style="font-size:11px;color:var(--text-muted)">実施日（毎月〇日）</label>
+          <input type="number" id="add-goal-monthday" min="1" max="28" value="1"
+            style="width:55px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:inherit;margin-left:4px">
+        </div>
+      </div>
       <div class="form-group">
         <label>テーマ <span style="font-size:11px;color:var(--text-muted)">(任意)</span></label>
         <input type="text" id="add-goal-theme" placeholder="例: 設備計画、スキルアップ...">
@@ -1282,7 +1305,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.6.4';
+const APP_VERSION = 'v1.7.0';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -1558,6 +1581,7 @@ function addGoal(d) {
     id: uuid(), number: d.number, title: d.title,
     category: d.category || '仕事', theme: d.theme || '',
     type: d.type || null, progressNote: d.progressNote || null,
+    frequency: d.frequency || null, weekday: d.weekday ?? null, monthDay: d.monthDay ?? null,
     status: 'notStarted',
     memo: '', doneAt: null, createdAt: new Date().toISOString(),
   });
@@ -2974,6 +2998,28 @@ function openGoalDetail(id) {
       <textarea id="gd-progress-note" placeholder="例：現在120人。ビール特集が好評だった"
         style="width:100%;min-height:60px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;resize:vertical">${h(g.progressNote||'')}</textarea>
     </div>
+    <div id="gd-frequency-group" style="display:${g.type==='habit'?'':'none'};margin-bottom:10px">
+      <div style="font-size:12px;font-weight:500;margin-bottom:4px">頻度</div>
+      <select id="gd-frequency" onchange="onGoalFrequencyChange('gd')"
+        style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit">
+        <option value="daily"   ${(g.frequency||'daily')==='daily'  ?'selected':''}>毎日</option>
+        <option value="weekly"  ${g.frequency==='weekly' ?'selected':''}>週次</option>
+        <option value="monthly" ${g.frequency==='monthly'?'selected':''}>月次</option>
+      </select>
+      <div id="gd-weekday-group" style="display:${g.frequency==='weekly'?'':'none'};margin-top:6px">
+        <label style="font-size:11px;color:var(--text-muted)">曜日</label>
+        <select id="gd-weekday"
+          style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:inherit;margin-left:4px">
+          ${[['日',0],['月',1],['火',2],['水',3],['木',4],['金',5],['土',6]].map(([name,v])=>
+            `<option value="${v}" ${g.weekday===v?'selected':''}>${name}</option>`).join('')}
+        </select>
+      </div>
+      <div id="gd-monthday-group" style="display:${g.frequency==='monthly'?'':'none'};margin-top:6px">
+        <label style="font-size:11px;color:var(--text-muted)">実施日（毎月〇日）</label>
+        <input type="number" id="gd-monthday" min="1" max="28" value="${g.monthDay||1}"
+          style="width:55px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:inherit;margin-left:4px">
+      </div>
+    </div>
     <div class="detail-row">
       <span class="detail-label">ステータス</span>
       <select id="gd-status" ${g.type==='dormant'?'disabled':''} style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit" onchange="if(document.querySelector('input[name=gd-type]:checked')?.value==='dormant'){alert('休止中のGoalは変更できません');this.value='notStarted';return false;}">
@@ -3047,6 +3093,9 @@ function openGoalDetail(id) {
       memo:         document.getElementById('gd-memo').value,
       type:         newType,
       progressNote: newType === 'explore' ? (document.getElementById('gd-progress-note').value.trim() || null) : null,
+      frequency:    newType === 'habit' ? (document.getElementById('gd-frequency')?.value || 'daily') : null,
+      weekday:      document.getElementById('gd-frequency')?.value === 'weekly'  ? parseInt(document.getElementById('gd-weekday').value)  : null,
+      monthDay:     document.getElementById('gd-frequency')?.value === 'monthly' ? parseInt(document.getElementById('gd-monthday').value) : null,
     });
     closeAllModals(); renderAll(); showToast('目標を更新しました');
   };
@@ -3397,6 +3446,10 @@ function openAddGoalModal(number) {
   document.querySelectorAll('input[name="add-goal-type"]').forEach(r => r.checked = false);
   document.getElementById('add-goal-progress-note-group').style.display = 'none';
   document.getElementById('add-goal-progress-note').value = '';
+  document.getElementById('add-goal-frequency-group').style.display = 'none';
+  document.getElementById('add-goal-frequency').value = 'daily';
+  document.getElementById('add-goal-weekday-group').style.display  = 'none';
+  document.getElementById('add-goal-monthday-group').style.display = 'none';
   document.getElementById('modal-add-goal').classList.add('open');
   setTimeout(() => document.getElementById('add-goal-title').focus(), 100);
 }
@@ -3408,11 +3461,15 @@ function saveAddGoal() {
   if (isNaN(num) || num < 1) { showToast('番号は1以上で入力してください'); return; }
   if (S.goals.find(g=>g.number===num)) { showToast('その番号は既に使用されています'); return; }
   const typeVal = document.querySelector('input[name="add-goal-type"]:checked')?.value || null;
+  const freqVal = typeVal === 'habit' ? (document.getElementById('add-goal-frequency')?.value || 'daily') : null;
   addGoal({ number: num, title,
     category:     document.getElementById('add-goal-cat').value,
     theme:        document.getElementById('add-goal-theme').value.trim(),
     type:         typeVal,
     progressNote: typeVal === 'explore' ? (document.getElementById('add-goal-progress-note').value.trim() || null) : null,
+    frequency:    freqVal,
+    weekday:      freqVal === 'weekly'  ? parseInt(document.getElementById('add-goal-weekday').value)  : null,
+    monthDay:     freqVal === 'monthly' ? parseInt(document.getElementById('add-goal-monthday').value) : null,
   });
   closeAllModals();
   renderGoalGrid();
@@ -3424,6 +3481,8 @@ function onGoalTypeChange(prefix) {
   const checked = document.querySelector(`input[name="${prefix}-type"]:checked`);
   const group   = document.getElementById(`${prefix}-progress-note-group`);
   if (group) group.style.display = checked?.value === 'explore' ? '' : 'none';
+  const freqGroup = document.getElementById(`${prefix}-frequency-group`);
+  if (freqGroup) freqGroup.style.display = checked?.value === 'habit' ? '' : 'none';
 
   const statusSel = document.getElementById(`${prefix}-status`);
   if (statusSel) {
@@ -3437,6 +3496,14 @@ function onGoalTypeChange(prefix) {
       statusSel.disabled = false;
     }
   }
+}
+
+function onGoalFrequencyChange(prefix) {
+  const val = document.getElementById(`${prefix}-frequency`)?.value;
+  const wg  = document.getElementById(`${prefix}-weekday-group`);
+  const mg  = document.getElementById(`${prefix}-monthday-group`);
+  if (wg) wg.style.display = val === 'weekly'  ? '' : 'none';
+  if (mg) mg.style.display = val === 'monthly' ? '' : 'none';
 }
 
 function buildSuggestPrompt(goals) {
@@ -3891,11 +3958,12 @@ function openReviewModal(ds) {
   const existing = S.reviews.find(r => r.date === ds);
   if (existing?.aiAdvice) _reviewAiAdvice = existing.aiAdvice;
 
+  const taskItems = [];
   [...doneList, ...undoneList].forEach(t => {
     const parent  = t.parentId ? S.tasks.find(p => p.id === t.parentId) : null;
     const exItem  = existing?.items?.find(i => i.taskId === t.id);
     const isDone  = t.recurrence ? isRecurringDone(t.id, ds) : t.completed;
-    _reviewItems.push({
+    taskItems.push({
       taskId:      t.id,
       title:       t.title,
       parentTitle: parent?.title || null,
@@ -3905,8 +3973,37 @@ function openReviewModal(ds) {
       result:      exItem?.result      || null,
       comment:     exItem?.comment     || null,
       commentFree: exItem?.commentFree || null,
+      sourceType:  'task',
     });
   });
+
+  // habit Goal（type=habit & inProgress）を頻度でフィルタして追加
+  const dsDate = new Date(ds + 'T00:00:00');
+  const habitItems = (S.goals || [])
+    .filter(g => g.type === 'habit' && g.status === 'inProgress')
+    .filter(g => {
+      const freq = g.frequency || 'daily';
+      if (freq === 'daily')   return true;
+      if (freq === 'weekly')  return dsDate.getDay() === (g.weekday ?? 0);
+      if (freq === 'monthly') return dsDate.getDate() === (g.monthDay ?? 1);
+      return false;
+    })
+    .map(g => {
+      const exItem = existing?.items?.find(i => i.goalId === g.id);
+      return {
+        goalId:      g.id,
+        title:       g.title,
+        parentTitle: null,
+        recurrence:  null,
+        completed:   exItem?.completed ?? false,
+        result:      exItem?.result      || null,
+        comment:     exItem?.comment     || null,
+        commentFree: exItem?.commentFree || null,
+        sourceType:  'habit',
+      };
+    });
+
+  _reviewItems = [...taskItems, ...habitItems];
 
   renderReviewModal();
   document.getElementById('modal-review').classList.add('open');
@@ -3923,6 +4020,8 @@ function renderReviewModal() {
     const idx = _reviewItems.indexOf(item);
     const recurBadge = item.recurrence
       ? `<span style="font-size:10px;color:var(--text-muted);margin-left:4px">🔁${recurLabel({recurrence:item.recurrence})}</span>` : '';
+    const habitBadge = item.sourceType === 'habit'
+      ? `<span style="font-size:10px;color:#fff;background:#16a34a;border-radius:3px;padding:1px 5px;margin-left:4px">習慣</span>` : '';
     const parentLine = item.parentTitle
       ? `<div style="font-size:10px;color:var(--text-muted);margin-top:2px">└─ ${h(item.parentTitle)}（親）</div>` : '';
     const opts = item.result === 'good' ? goodOpts : item.result === 'bad' ? badOpts : [];
@@ -3940,7 +4039,7 @@ function renderReviewModal() {
     <div style="border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:6px;background:var(--bg)">
       <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:6px">
         <div style="flex:1;min-width:0">
-          <span style="font-size:12px;font-weight:500">${h(item.title)}</span>${recurBadge}
+          <span style="font-size:12px;font-weight:500">${h(item.title)}</span>${recurBadge}${habitBadge}
           ${parentLine}
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
@@ -4084,8 +4183,8 @@ function saveReviewFromModal() {
   const review = {
     id:        existing >= 0 ? S.reviews[existing].id : uuid(),
     date:      _reviewDate,
-    items:     _reviewItems.map(({ taskId, title, parentTitle, completed, result, comment, commentFree }) =>
-                 ({ taskId, title, parentTitle, completed, result, comment, commentFree })),
+    items:     _reviewItems.map(({ taskId, goalId, title, parentTitle, completed, result, comment, commentFree, sourceType }) =>
+                 ({ taskId: taskId || null, goalId: goalId || null, title, parentTitle, completed, result, comment, commentFree, sourceType: sourceType || 'task' })),
     memo,
     aiAdvice:  _reviewAiAdvice || null,
     createdAt: existing >= 0 ? S.reviews[existing].createdAt : new Date().toISOString(),
