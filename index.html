@@ -4035,8 +4035,9 @@ function renderReviewModal() {
     const idx = _reviewItems.indexOf(item);
     const recurBadge = item.recurrence
       ? `<span style="font-size:10px;color:var(--text-muted);margin-left:4px">🔁${recurLabel({recurrence:item.recurrence})}</span>` : '';
+    const streak = item.sourceType === 'habit' ? getHabitStreak(item.goalId, _reviewDate, item.result) : 0;
     const habitBadge = item.sourceType === 'habit'
-      ? `<span style="font-size:10px;color:#fff;background:#16a34a;border-radius:3px;padding:1px 5px;margin-left:4px">習慣</span>` : '';
+      ? `<span style="font-size:10px;color:#fff;background:#16a34a;border-radius:3px;padding:1px 5px;margin-left:4px">習慣</span>${streak > 0 ? `<span style="font-size:10px;margin-left:3px">🔥${streak}日</span>` : ''}` : '';
     const parentLine = item.parentTitle
       ? `<div style="font-size:10px;color:var(--text-muted);margin-top:2px">└─ ${h(item.parentTitle)}（親）</div>` : '';
     const opts = item.result === 'good' ? goodOpts : item.result === 'bad' ? badOpts : [];
@@ -4096,6 +4097,24 @@ function renderReviewModal() {
     </div>
     ${aiSection}
   `;
+}
+
+function getHabitStreak(goalId, asOfDate, currentResult) {
+  const goodDates = new Set();
+  S.reviews.forEach(r => {
+    if (r.date === asOfDate) return; // 当日は currentResult で上書き
+    const item = r.items?.find(i => i.goalId === goalId);
+    if (item?.result === 'good') goodDates.add(r.date);
+  });
+  if (currentResult === 'good') goodDates.add(asOfDate);
+
+  let streak = 0;
+  const d = new Date(asOfDate + 'T00:00:00');
+  while (goodDates.has(dateStr(d))) {
+    streak++;
+    d.setDate(d.getDate() - 1);
+  }
+  return streak;
 }
 
 function setReviewResult(idx, result) {
