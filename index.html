@@ -2189,10 +2189,19 @@ function renderGoalGrid() {
       const g = map.get(i);
       if (g) {
         const typeBadgeLabel = {achievement:'達成',habit:'習慣',explore:'探索',dormant:'休止'};
+        let streakBadge = '';
+        if (g.type === 'habit') {
+          const todayStr    = today();
+          const todayReview = S.reviews.find(r => r.date === todayStr);
+          const todayItem   = todayReview?.items?.find(i => i.goalId === g.id);
+          const streak      = getHabitStreak(g.id, todayStr, todayItem?.result || null);
+          if (streak > 0) streakBadge = `<div style="font-size:10px;line-height:1;margin-top:2px">🔥${streak}日</div>`;
+        }
         html += `<div class="goal-cell ${g.status}" style="${g.type==='dormant'?'opacity:0.6;':''}" onclick="openGoalDetail('${g.id}')">
           <div class="goal-cell-num">${i}</div>
           <div class="goal-cell-title">${h(g.title)}</div>
           ${g.type ? `<div class="goal-type-badge ${g.type}">${typeBadgeLabel[g.type]||''}</div>` : ''}
+          ${streakBadge}
         </div>`;
       } else {
         html += `<div class="goal-cell" onclick="openAddGoalModal(${i})">
