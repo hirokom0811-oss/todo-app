@@ -3884,10 +3884,15 @@ function renderSettings() {
       <div class="section-title">🔧 データ修復</div>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">習慣型Goalから生成されたタスクの scheduledDate / recurrenceEnd を現在年で再計算します</div>
       <button class="btn btn-sm" onclick="fixHabitTaskDatesInPlace()">🔧 習慣タスクの日付を修正</button>
-      <div style="margin-top:14px;font-size:12px;color:var(--text-muted);margin-bottom:8px">
-        習慣型Goalに紐づくタスクを一括削除します（振り返りには不要になりました）
-      </div>
-      <button class="btn btn-sm btn-danger" onclick="cleanupHabitTasks()">🗑 習慣タスクを一括削除</button>
+      ${(() => {
+        const habitGoalIds = new Set(S.goals.filter(g => g.type === 'habit').map(g => g.id));
+        const cnt = S.tasks.filter(t => t.goalId && habitGoalIds.has(t.goalId)).length;
+        return cnt > 0 ? `
+          <div style="margin-top:14px;font-size:12px;color:var(--text-muted);margin-bottom:8px">
+            習慣型Goalに紐づくタスク（${cnt}件）を一括削除します（振り返りには不要になりました）
+          </div>
+          <button class="btn btn-sm btn-danger" onclick="cleanupHabitTasks()">🗑 習慣タスクを一括削除</button>` : '';
+      })()}
     </div>`;
 }
 
