@@ -3884,6 +3884,10 @@ function renderSettings() {
       <div class="section-title">🔧 データ修復</div>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">習慣型Goalから生成されたタスクの scheduledDate / recurrenceEnd を現在年で再計算します</div>
       <button class="btn btn-sm" onclick="fixHabitTaskDatesInPlace()">🔧 習慣タスクの日付を修正</button>
+      <div style="margin-top:14px;font-size:12px;color:var(--text-muted);margin-bottom:8px">
+        習慣型Goalに紐づくタスクを一括削除します（振り返りには不要になりました）
+      </div>
+      <button class="btn btn-sm btn-danger" onclick="cleanupHabitTasks()">🗑 習慣タスクを一括削除</button>
     </div>`;
 }
 
@@ -4355,6 +4359,26 @@ function fixHabitTaskDatesInPlace() {
   saveTasks();
   renderAll();
   showToast(`✅ ${count}件の習慣タスクの日付を修正しました`);
+}
+
+function cleanupHabitTasks() {
+  const habitGoalIds = new Set(S.goals.filter(g => g.type === 'habit').map(g => g.id));
+  const targets = S.tasks.filter(t => t.goalId && habitGoalIds.has(t.goalId));
+  if (!targets.length) { showToast('削除対象のタスクはありませんでした'); return; }
+
+  const preview = targets.slice(0, 5).map(t => `・${t.title}`).join('\n');
+  const more    = targets.length > 5 ? `\n…他 ${targets.length - 5} 件` : '';
+  if (!confirm(`習慣型Goalに紐づくタスクを ${targets.length} 件削除します。\n\n${preview}${more}\n\nよろしいですか？`)) return;
+
+  const deleteIds = new Set(targets.map(t => t.id));
+  // サブタスク（parentId が削除対象のもの）も含めて削除
+  S.tasks.filter(t => t.parentId && deleteIds.has(t.parentId)).forEach(t => deleteIds.add(t.id));
+  S.tasks = S.tasks.filter(t => !deleteIds.has(t.id));
+  S.completions = S.completions.filter(c => !deleteIds.has(c.taskId));
+  saveTasks();
+  saveCompletions();
+  renderAll();
+  showToast(`🗑 ${deleteIds.size} 件のタスクを削除しました`);
 }
 
 // ──────────────────────────────────────────────
