@@ -360,6 +360,7 @@
     .goal-type-badge.habit       { background: #d1fae5; color: #065f46; }
     .goal-type-badge.explore     { background: #fed7aa; color: #9a3412; }
     .goal-type-badge.dormant     { background: #e2e8f0; color: #475569; }
+    .big3-badge { display:inline-block; background:#f59e0b; color:#fff; font-size:9px; font-weight:700; padding:1px 5px; border-radius:3px; line-height:1.4; }
     /* ── Project Page ── */
     .project-page { padding: 12px; max-width: 800px; margin: 0 auto; }
     .project-page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
@@ -1305,7 +1306,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.8.1';
+const APP_VERSION = 'v1.8.2';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -1583,6 +1584,7 @@ function addGoal(d) {
     type: d.type || null, progressNote: d.progressNote || null,
     frequency: d.frequency || null, weekday: d.weekday ?? null, monthDay: d.monthDay ?? null,
     status: 'notStarted',
+    isBig3: false,
     memo: '', doneAt: null, createdAt: new Date().toISOString(),
   });
   saveGoals();
@@ -2197,9 +2199,11 @@ function renderGoalGrid() {
           const streak      = getHabitStreak(g.id, todayStr, todayItem?.result || null);
           if (streak > 0) streakBadge = `<div style="font-size:10px;line-height:1;margin-top:2px">🔥${streak}日</div>`;
         }
+        const big3Badge = g.isBig3 ? `<div class="big3-badge">BIG3</div>` : '';
         html += `<div class="goal-cell ${g.status}" style="${g.type==='dormant'?'opacity:0.6;':''}" onclick="openGoalDetail('${g.id}')">
           <div class="goal-cell-num">${i}</div>
           <div class="goal-cell-title">${h(g.title)}</div>
+          ${big3Badge}
           ${g.type ? `<div class="goal-type-badge ${g.type}">${typeBadgeLabel[g.type]||''}</div>` : ''}
           ${streakBadge}
         </div>`;
@@ -2280,10 +2284,11 @@ function renderGoalByGroup() {
           <span style="font-size:10px;color:var(--text-muted);margin-left:auto">${doneT}/${goals.length} 達成</span>
         </div>`;
       for (const g of goals) {
+        const big3b = g.isBig3 ? `<span class="big3-badge" style="margin-left:4px">BIG3</span>` : '';
         html += `<div class="goal-list-item ${g.status}" onclick="openGoalDetail('${g.id}')">
           <span class="goal-list-num">#${g.number}</span>
           <span class="goal-list-status">${STATUS_ICON[g.status]}</span>
-          <span class="goal-list-title">${h(g.title)}</span>
+          <span class="goal-list-title">${h(g.title)}${big3b}</span>
           <span class="goal-list-badge ${STATUS_BADGE[g.status]}">${STATUS_LABEL[g.status]}</span>
         </div>`;
       }
@@ -2977,6 +2982,16 @@ function openGoalDetail(id) {
       <input id="gd-number" type="number" min="1" max="100" value="${g.number}"
         style="width:70px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit">
     </div>
+    <div class="detail-row"><span class="detail-label">BIG3</span>
+      <button id="gd-big3-btn" data-big3="${g.isBig3?'true':'false'}"
+        onclick="toggleBig3Btn('${id}')"
+        style="padding:4px 12px;border-radius:5px;font-size:12px;cursor:pointer;font-family:inherit;
+               background:${g.isBig3?'#f59e0b':'#f1f5f9'};
+               color:${g.isBig3?'#fff':'#64748b'};
+               border:1px solid ${g.isBig3?'#f59e0b':'#e2e8f0'}">
+        ${g.isBig3?'⭐ BIG3 ON':'☆ BIG3 OFF'}
+      </button>
+    </div>
     <div class="detail-row"><span class="detail-label">目標名</span>
       <input id="gd-title" type="text" value="${h(g.title)}"
         style="flex:1;padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit">
@@ -3103,6 +3118,7 @@ function openGoalDetail(id) {
       status:       document.getElementById('gd-status').value,
       memo:         document.getElementById('gd-memo').value,
       type:         newType,
+      isBig3:       document.getElementById('gd-big3-btn').dataset.big3 === 'true',
       progressNote: newType === 'explore' ? (document.getElementById('gd-progress-note').value.trim() || null) : null,
       frequency:    newType === 'habit' ? (document.getElementById('gd-frequency')?.value || 'daily') : null,
       weekday:      document.getElementById('gd-frequency')?.value === 'weekly'  ? parseInt(document.getElementById('gd-weekday').value)  : null,
@@ -3116,6 +3132,22 @@ function openGoalDetail(id) {
     }
   };
   document.getElementById('modal-goal-detail').classList.add('open');
+}
+
+function toggleBig3Btn(currentGoalId) {
+  const btn = document.getElementById('gd-big3-btn');
+  const isOn = btn.dataset.big3 === 'true';
+  if (!isOn) {
+    const count = S.goals.filter(g => g.isBig3 && g.id !== currentGoalId).length;
+    if (count >= 3) { showToast('BIG3はすでに3件設定されています'); return; }
+    btn.dataset.big3 = 'true';
+    btn.style.background = '#f59e0b'; btn.style.color = '#fff'; btn.style.borderColor = '#f59e0b';
+    btn.textContent = '⭐ BIG3 ON';
+  } else {
+    btn.dataset.big3 = 'false';
+    btn.style.background = '#f1f5f9'; btn.style.color = '#64748b'; btn.style.borderColor = '#e2e8f0';
+    btn.textContent = '☆ BIG3 OFF';
+  }
 }
 
 function goToTask(id) {
