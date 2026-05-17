@@ -1402,6 +1402,20 @@ function loadAll() {
       delete t.blockId;
     }
   });
+  // 旧データ移行: project.number がないものに連番を付与
+  const usedProjNums = new Set(S.projects.filter(p => p.number).map(p => p.number));
+  let pNumCur = 1;
+  let needsSave = false;
+  S.projects.forEach(p => {
+    if (!p.number) {
+      while (usedProjNums.has(pNumCur)) pNumCur++;
+      p.number = pNumCur;
+      usedProjNums.add(pNumCur);
+      pNumCur++;
+      needsSave = true;
+    }
+  });
+  if (needsSave) saveProjects();
   // 起動時Gist同期チェック（非同期・UIをブロックしない）
   checkGistSync();
 }
