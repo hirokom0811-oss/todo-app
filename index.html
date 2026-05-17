@@ -3251,6 +3251,7 @@ function buildDecomposePrompt(goal) {
 
 function openAddTaskWithGoal(goalId) {
   closeAllModals();
+  showPage('todo');
   buildGoalSelect('task-goal', goalId);
   const detail = document.getElementById('add-task-detail');
   if (detail && detail.classList.contains('collapsed')) {
