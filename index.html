@@ -1305,7 +1305,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.7.1';
+const APP_VERSION = 'v1.8.0';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -3043,8 +3043,10 @@ function openGoalDetail(id) {
       <span class="detail-label">メモ</span>
       <textarea id="gd-memo" style="flex:1;min-height:60px;padding:5px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;resize:vertical">${h(g.memo||'')}</textarea>
     </div>
-    <div style="margin:14px 0 4px">
-      <button class="btn btn-primary" style="width:100%;font-size:13px"
+    <div style="margin:14px 0 4px;display:flex;gap:8px">
+      <button class="btn" style="flex:1;font-size:13px"
+        onclick="openAddTaskWithGoal('${id}')">＋ タスクを追加</button>
+      <button class="btn btn-primary" style="flex:1;font-size:13px"
         onclick="decomposeGoal('${id}')">🤖 AIでTODO分解</button>
     </div>
     <div class="linked-tasks-section">
@@ -3244,6 +3246,20 @@ function buildDecomposePrompt(goal) {
 
   } else {
     return base + `この目標を達成するために必要なタスクを5〜10件提案してください。`;
+  }
+}
+
+function openAddTaskWithGoal(goalId) {
+  closeAllModals();
+  buildGoalSelect('task-goal', goalId);
+  const detail = document.getElementById('add-task-detail');
+  if (detail && detail.classList.contains('collapsed')) {
+    toggleAddFormDetail();
+  }
+  const titleInput = document.getElementById('task-title');
+  if (titleInput) {
+    titleInput.focus();
+    titleInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 }
 
