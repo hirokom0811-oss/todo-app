@@ -1350,7 +1350,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.8.7';
+const APP_VERSION = 'v1.8.8';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -4311,7 +4311,7 @@ function openReviewModal(ds) {
   );
   // ③ 繰り返しタスク（その日が発生日 + 未完了）
   const recurringUndone = S.tasks.filter(t =>
-    t.recurrence && isOccurrenceOnDate(t, ds) && !isRecurringDone(t.id, ds) && !habitGoalIds.has(t.goalId)
+    t.recurrence && !t.completed && isOccurrenceOnDate(t, ds) && !isRecurringDone(t.id, ds) && !habitGoalIds.has(t.goalId)
   );
 
   // 繰り返しタスクID（dueTasks との重複除去用）
