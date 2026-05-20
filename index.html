@@ -1350,7 +1350,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.8.6';
+const APP_VERSION = 'v1.8.7';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -1537,6 +1537,7 @@ function toggleComplete(id) {
   const t = S.tasks.find(t => t.id === id);
   if (!t) return;
   updateTask(id, { completed: !t.completed });
+  if (t.dueDate) syncReviewItemCompleted(id, t.dueDate);
 }
 // TODOリストのチェックボックス専用：
 //   繰り返しタスク → 当日ログのみトグル（t.completed は触らない）
@@ -1977,6 +1978,19 @@ function toggleCompletion(taskId, ds) {
   if (idx === -1) S.completions.push({ taskId, date: ds });
   else            S.completions.splice(idx, 1);
   saveCompletions();
+  syncReviewItemCompleted(taskId, ds);
+}
+function syncReviewItemCompleted(taskId, ds) {
+  const review = S.reviews.find(r => r.date === ds);
+  if (!review?.items) return;
+  const item = review.items.find(i => i.taskId === taskId);
+  if (!item) return;
+  const t = S.tasks.find(t => t.id === taskId);
+  if (!t) return;
+  const newCompleted = t.recurrence ? isRecurringDone(taskId, ds) : t.completed;
+  if (item.completed === newCompleted) return;
+  item.completed = newCompleted;
+  saveReviews();
 }
 // 繰り返しタスクの全発生日を配列で返す（上限 366 日）
 function getOccurrenceDates(task) {
@@ -4377,6 +4391,13 @@ function renderReviewModal() {
       ? `<div style="font-size:10px;color:var(--text-muted);margin-top:2px">└─ ${h(item.parentTitle)}（親）</div>` : '';
     const reviewGoal = item.goalId ? S.goals.find(g => g.id === item.goalId) : null;
     const big3ReviewBadge = reviewGoal?.isBig3 ? `<span class="big3-badge" style="margin-left:4px">BIG3</span>` : '';
+    if (item.completed && !item.result) {
+      return `
+    <div style="border:1px solid var(--border);border-radius:6px;padding:6px 10px;margin-bottom:6px;background:var(--bg);opacity:0.45">
+      <div style="font-size:12px">${h(item.title)}${recurBadge}${habitBadge}${big3ReviewBadge}</div>
+      ${parentLine}
+    </div>`;
+    }
     const opts = item.result === 'good' ? goodOpts : item.result === 'bad' ? badOpts : [];
     const commentSel = item.result ? `
       <select onchange="setReviewComment(${idx}, this.value)"
