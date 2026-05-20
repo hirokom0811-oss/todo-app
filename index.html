@@ -1350,7 +1350,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.8.9';
+const APP_VERSION = 'v1.8.10';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -2855,8 +2855,9 @@ function openTaskDetail(id) {
   const btn = document.getElementById('td-complete-btn');
   btn.style.display = '';
   if (t.recurrence) {
-    btn.textContent = t.completed ? '未完了に戻す' : '完了にする';
-    btn.onclick = () => { toggleComplete(id); closeAllModals(); renderAll(); };
+    const ds = today();
+    btn.textContent = isRecurringDone(id, ds) ? '未完了に戻す' : '完了にする';
+    btn.onclick = () => { toggleCompletion(id, ds); closeAllModals(); renderAll(); };
   } else {
     btn.textContent = t.completed ? '未完了に戻す' : '完了にする';
     btn.onclick = () => { toggleComplete(id); closeAllModals(); renderAll(); };
