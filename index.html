@@ -1350,7 +1350,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.8.8';
+const APP_VERSION = 'v1.8.9';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -4306,8 +4306,9 @@ function openReviewModal(ds) {
   const dueTasks = S.tasks.filter(t => t.dueDate === ds && !habitGoalIds.has(t.goalId));
   // ② 繰り返しタスク（completionsログに記録あり = その日に実施した事実が確定）
   // isOccurrenceOnDate は不要。ログの存在が唯一の根拠。
+  // completed=true（強制完了）はレビューに表示しない
   const recurringDone = S.tasks.filter(t =>
-    t.recurrence && isRecurringDone(t.id, ds) && !habitGoalIds.has(t.goalId)
+    t.recurrence && !t.completed && isRecurringDone(t.id, ds) && !habitGoalIds.has(t.goalId)
   );
   // ③ 繰り返しタスク（その日が発生日 + 未完了）
   const recurringUndone = S.tasks.filter(t =>
@@ -4315,7 +4316,12 @@ function openReviewModal(ds) {
   );
 
   // 繰り返しタスクID（dueTasks との重複除去用）
-  const recurIds = new Set([...recurringDone, ...recurringUndone].map(t => t.id));
+  // completed=true の繰り返しタスクも除外対象に含める
+  const recurIds = new Set([
+    ...recurringDone,
+    ...recurringUndone,
+    ...S.tasks.filter(t => t.recurrence && t.completed),
+  ].map(t => t.id));
   const doneList   = [...dueTasks.filter(t =>  t.completed && !recurIds.has(t.id)), ...recurringDone];
   const undoneList = [...dueTasks.filter(t => !t.completed && !recurIds.has(t.id)), ...recurringUndone];
 
