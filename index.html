@@ -1350,7 +1350,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.8.10';
+const APP_VERSION = 'v1.8.11';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -4398,13 +4398,6 @@ function renderReviewModal() {
       ? `<div style="font-size:10px;color:var(--text-muted);margin-top:2px">└─ ${h(item.parentTitle)}（親）</div>` : '';
     const reviewGoal = item.goalId ? S.goals.find(g => g.id === item.goalId) : null;
     const big3ReviewBadge = reviewGoal?.isBig3 ? `<span class="big3-badge" style="margin-left:4px">BIG3</span>` : '';
-    if (item.completed && !item.result) {
-      return `
-    <div style="border:1px solid var(--border);border-radius:6px;padding:6px 10px;margin-bottom:6px;background:var(--bg);opacity:0.45">
-      <div style="font-size:12px">${h(item.title)}${recurBadge}${habitBadge}${big3ReviewBadge}</div>
-      ${parentLine}
-    </div>`;
-    }
     const opts = item.result === 'good' ? goodOpts : item.result === 'bad' ? badOpts : [];
     const commentSel = item.result ? `
       <select onchange="setReviewComment(${idx}, this.value)"
