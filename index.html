@@ -1350,7 +1350,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.8.11';
+const APP_VERSION = 'v1.8.12';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -1863,7 +1863,7 @@ function renderTodoList() {
       ${t.theme?`<span class="badge badge-theme">${h(t.theme)}</span>`:''}
       ${(()=>{ if(!t.recurrence) return ''; const all=getOccurrenceDates(t); const done=all.filter(d=>isRecurringDone(t.id,d)).length; return `<span class="badge badge-recur">🔁${recurLabel(t)} ${done}/${all.length}</span>`; })()}
       ${t.dueDate?`<span class="badge badge-due ${overdue?'overdue':''}">📅${t.dueDate}</span>`:''}
-      ${(t.blockIds||[]).map(bid=>{const blk=getBlockById(bid);return blk?`<span class="badge badge-block">📦${h(blk.title||blk.date+' '+blk.startTime)}</span>`:''}).join('')}
+      ${(t.blockIds||[]).map(bid=>{const blk=getBlockById(bid);return (blk&&isBlockOnDate(blk,today()))?`<span class="badge badge-block">📦${h(blk.title||blk.date+' '+blk.startTime)}</span>`:''}).join('')}
       ${goal?`<span class="badge badge-goal" style="${goal.isBig3?'background:#fef3c7;color:#b45309;border:1px solid #f59e0b;font-weight:700':''}">${goal.isBig3?'⭐':'🎯'}#${goal.number}</span>`:''}
       ${project?`<span class="badge" style="background:#f0fdf4;color:#15803d">📁${h(project.title)}</span>`:''}
       ${children.length?`<span class="badge badge-children" title="子タスクを表示" onclick="event.stopPropagation();openTaskDetail('${t.id}')">▶ ${children.length}件</span>`:''}
