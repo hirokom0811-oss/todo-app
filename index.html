@@ -173,6 +173,7 @@
     .badge-high { background: #fee2e2; color: var(--high); }
     .badge-medium { background: #fef3c7; color: #d97706; }
     .badge-low { background: #f1f5f9; color: var(--text-muted); }
+    .badge-scale-super { background: #fef2f2; color: #dc2626; }
     .badge-scale-large { background: #f3e8ff; color: #7c3aed; }
     .badge-scale-medium { background: #e0f2fe; color: #0369a1; }
     .badge-scale-small { background: #f0fdf4; color: #15803d; }
@@ -703,9 +704,10 @@
               <div class="form-group">
                 <label>規模</label>
                 <select id="task-scale">
-                  <option value="large">大（2h以上）</option>
-                  <option value="medium">中（1〜2h）</option>
-                  <option value="small" selected>小（1h未満）</option>
+                  <option value="super">超（2h超）</option>
+                  <option value="large">大（1〜2h）</option>
+                  <option value="medium">中（15〜60分）</option>
+                  <option value="small" selected>小（〜15分）</option>
                 </select>
               </div>
             </div>
@@ -1057,9 +1059,10 @@
         <div class="form-group">
           <label>規模</label>
           <select id="edit-scale">
-            <option value="large">大（2h以上）</option>
-            <option value="medium">中（1〜2h）</option>
-            <option value="small">小（1h未満）</option>
+            <option value="super">超（2h超）</option>
+            <option value="large">大（1〜2h）</option>
+            <option value="medium">中（15〜60分）</option>
+            <option value="small">小（〜15分）</option>
           </select>
         </div>
       </div>
@@ -1350,7 +1353,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.8.13';
+const APP_VERSION = 'v1.9.0';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -1763,7 +1766,7 @@ function closeAllModals() {
 }
 
 const PRIORITY_LABEL = { high:'高', medium:'中', low:'低' };
-const SCALE_LABEL    = { large:'大', medium:'中', small:'小' };
+const SCALE_LABEL    = { super:'超', large:'大', medium:'中', small:'小' };
 const STATUS_LABEL   = { notStarted:'未着手', planning:'計画中', inProgress:'進行中', done:'達成' };
 
 // ──────────────────────────────────────────────
@@ -1845,7 +1848,7 @@ function renderTodoList() {
     const overdue = t.dueDate && t.dueDate < tod && !isDone;
     const goal    = t.goalId    ? S.goals.find(g => g.id === t.goalId)    : null;
     const project = t.projectId ? S.projects.find(p => p.id === t.projectId) : null;
-    const scaleCls  = t.scale === 'large' ? 'badge-scale-large' : t.scale === 'medium' ? 'badge-scale-medium' : 'badge-scale-small';
+    const scaleCls  = t.scale === 'super' ? 'badge-scale-super' : t.scale === 'large' ? 'badge-scale-large' : t.scale === 'medium' ? 'badge-scale-medium' : 'badge-scale-small';
     const priCls    = `badge-${t.priority}`;
     const children  = S.tasks.filter(c => c.parentId === t.id);
     return `
@@ -2804,7 +2807,7 @@ function openTaskDetail(id) {
   if (!t) return;
   const goal    = t.goalId    ? S.goals.find(g=>g.id===t.goalId)        : null;
   const project = t.projectId ? S.projects.find(p=>p.id===t.projectId) : null;
-  const scaleCls = t.scale==='large'?'badge-scale-large':t.scale==='medium'?'badge-scale-medium':'badge-scale-small';
+  const scaleCls = t.scale==='super'?'badge-scale-super':t.scale==='large'?'badge-scale-large':t.scale==='medium'?'badge-scale-medium':'badge-scale-small';
 
   document.getElementById('task-detail-body').innerHTML = `
     <div class="detail-row"><span class="detail-label">タイトル</span><strong style="font-size:13px">${h(t.title)}</strong></div>
@@ -3490,14 +3493,14 @@ ${themeList ? `利用可能なテーマ: ${themeList}` : ''}
     {
       "title": "サブタスク名（30文字以内）",
       "priority": "high | medium | low",
-      "scale": "large | medium | small",
+      "scale": "super | large | medium | small",
       "theme": "テーマ名または空文字",
       "memo": "補足（30文字以内、任意）"
     }
   ]
 }
 priority: high=今すぐ必要, medium=通常, low=余裕があれば
-scale: large=2時間以上, medium=1〜2時間, small=1時間未満
+scale: super=2時間超（分解推奨）, large=1〜2時間, medium=15〜60分, small=15分未満
 theme は利用可能なテーマから選ぶか空文字。`;
 
   try {
@@ -3622,7 +3625,7 @@ ${themeList ? `利用可能なテーマ: ${themeList}\n` : ''}
     {
       "title": "タスク名（30文字以内）",
       "priority": "high | medium | low",
-      "scale": "large | medium | small",
+      "scale": "super | large | medium | small",
       "theme": "テーマ名または空文字",
       "recurrence": "daily | weekday | weekly | null",
       "scheduledDate": "YYYY-MM-DD | null",
@@ -3632,7 +3635,7 @@ ${themeList ? `利用可能なテーマ: ${themeList}\n` : ''}
   ]
 }
 priority: high=今すぐ必要, medium=通常, low=余裕があれば
-scale: large=2時間以上, medium=1〜2時間, small=1時間未満
+scale: super=2時間超（分解推奨）, large=1〜2時間, medium=15〜60分, small=15分未満
 theme は利用可能なテーマから選ぶか空文字。
 recurrence: 習慣系タスクのみ設定、それ以外は null。
 scheduledDate: 繰り返しタスクの開始日（YYYY-MM-DD）、なければ null。
@@ -3681,7 +3684,7 @@ recurrenceEnd: YYYY-MM-DD形式、繰り返しなしの場合は null。`;
 function renderAiTaskSuggestions(tasks, goalId) {
   const pColor = { high: 'var(--high)', medium: 'var(--medium-c)', low: 'var(--low)' };
   const pLabel = { high: '優先:高', medium: '優先:中', low: '優先:低' };
-  const sLabel = { large: '規模:大', medium: '規模:中', small: '規模:小' };
+  const sLabel = { super: '規模:超', large: '規模:大', medium: '規模:中', small: '規模:小' };
 
   document.getElementById('ai-tasks-body').innerHTML = `
     <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;padding:0 2px">
@@ -3743,7 +3746,7 @@ function addSelectedAiTasks(tasks, goalId) {
       title:          t.title,
       category,
       priority:       ['high','medium','low'].includes(t.priority) ? t.priority : 'medium',
-      scale:          ['large','medium','small'].includes(t.scale)  ? t.scale  : 'medium',
+      scale:          ['super','large','medium','small'].includes(t.scale)  ? t.scale  : 'medium',
       theme:          t.theme || null,
       recurrence:     ['daily','weekday','weekly'].includes(t.recurrence) ? t.recurrence : null,
       scheduledDate,
@@ -3988,7 +3991,7 @@ async function decomposeProject(projectId) {
 - 仕事のタスクとして具体的なアクションにすること
 
 JSON形式で返してください（説明文は不要）：
-[{"title":"タスク名","priority":"high|medium|low","scale":"large|medium|small"}]`;
+[{"title":"タスク名","priority":"high|medium|low","scale":"super|large|medium|small"}]`;
 
   try {
     const model    = localStorage.getItem('todo_gemini_model') || 'gemini-2.0-flash';
@@ -4026,7 +4029,7 @@ function addSelectedAiTasksForProject(tasks, project) {
       title:     t.title,
       category:  'work',
       priority:  ['high','medium','low'].includes(t.priority) ? t.priority : 'medium',
-      scale:     ['large','medium','small'].includes(t.scale)  ? t.scale   : 'medium',
+      scale:     ['super','large','medium','small'].includes(t.scale)  ? t.scale   : 'medium',
       theme:     project.theme || null,
       projectId: project.id,
     });
@@ -4683,7 +4686,7 @@ async function gistPull() {
 function exportDayICS() {
   const ds = dateStr(S.calDate);
   const fmtJST = (d, time) => d.replace(/-/g,'') + 'T' + time.replace(':','') + '00';
-  const scaleMin = { large: 120, medium: 90, small: 60 };
+  const scaleMin = { super: 150, large: 120, medium: 60, small: 15 };
 
   let ics = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//TODO App//JA\r\nCALSCALE:GREGORIAN\r\n';
   ics += 'BEGIN:VTIMEZONE\r\nTZID:Asia/Tokyo\r\nBEGIN:STANDARD\r\n';
