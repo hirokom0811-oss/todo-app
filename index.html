@@ -1350,7 +1350,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.8.12';
+const APP_VERSION = 'v1.8.13';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -2998,8 +2998,9 @@ function openBlockModal(id, prefillDate, prefillStart, prefillEnd) {
   const bTasks  = b ? getBlockTasks(b.id) : [];
   const doneCnt = bTasks.filter(t => t.recurrence ? isRecurringDone(t.id, _blockViewDate) : t.completed).length;
 
-  // この枠にまだ紐づいていない未完了タスク
-  const unlinked = b ? S.tasks.filter(t => !t.completed && !(t.blockIds||[]).includes(b.id)) : [];
+  // この枠にまだ紐づいていない未完了タスク（今月期限のもののみ）
+  const thisMonth = today().slice(0, 7);
+  const unlinked = b ? S.tasks.filter(t => !t.completed && !(t.blockIds||[]).includes(b.id) && t.dueDate && t.dueDate.startsWith(thisMonth)) : [];
 
   document.getElementById('block-modal-body').innerHTML = `
     ${!b && S.blockTemplates.length ? `
