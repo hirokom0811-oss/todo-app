@@ -149,6 +149,7 @@ git push origin main --tags
   "theme": "設備計画 | 任意文字列 | null",
   "memo": "メモ | null",
   "completed": false,
+  "status": "active | someday",
   "recurrence": "daily | weekday | weekly | null",
   "recurrenceEnd": "2026-12-31 | null",
   "createdAt": "ISO8601"
@@ -161,6 +162,7 @@ git push origin main --tags
 - `blockIds[]` — Task 側が Block への参照を持つ（Block 側は Task 参照を持たない）。
 - `projectId` — 仕事カテゴリのタスクが紐づくプロジェクトID。`null` の場合は未紐づけ。既存データは `null` として後方互換。
 - `memo` — タスクのメモ欄。AI分解のコメントも引き継ぐ。
+- `status` — タスクのステータス。`"someday"`（いつかやる）/ `"active"`（今すぐやる）。既存タスクはフィールドなし＝`active`扱い。`someday`タスクはデフォルトビュー（未完了フィルター）で非表示。
 
 ### Block（作業枠）
 
