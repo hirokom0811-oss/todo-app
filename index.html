@@ -749,6 +749,7 @@
           <button class="filter-chip" data-ft="status" data-fv="all">すべて</button>
           <button class="filter-chip active" data-ft="status" data-fv="active">未完了</button>
           <button class="filter-chip" data-ft="status" data-fv="completed">完了済</button>
+          <button class="filter-chip" data-ft="status" data-fv="someday">Someday</button>
           <div class="filter-sep"></div>
           <button class="filter-chip active" data-ft="category" data-fv="all">仕事+個人</button>
           <button class="filter-chip" data-ft="category" data-fv="work">仕事</button>
@@ -1097,6 +1098,15 @@
           <input type="date" id="edit-recur-end">
         </div>
       </div>
+      <div class="form-row" style="margin-top:8px">
+        <div class="form-group">
+          <label>ステータス</label>
+          <select id="edit-task-status">
+            <option value="active">今すぐやる（Active）</option>
+            <option value="someday">いつかやる（Someday）</option>
+          </select>
+        </div>
+      </div>
       <div class="form-group mb8" style="margin-top:8px">
         <label>メモ</label>
         <textarea id="edit-memo" rows="3" style="resize:vertical;font-family:inherit;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;width:100%;box-sizing:border-box;color:var(--text);background:var(--surface)" placeholder="メモを入力..."></textarea>
@@ -1353,7 +1363,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.9.0';
+const APP_VERSION = 'v1.10.0';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -1810,10 +1820,12 @@ function renderTodoList() {
   let tasks = S.tasks.filter(t => !t.parentId);
   // 繰り返しタスク：今日の発生分が完了済みなら未完了フィルターで非表示
   if (status === 'active')    tasks = tasks.filter(t => {
+    if (t.status === 'someday') return false;
     if (t.recurrence && !t.completed && isRecurringDone(t.id, tod)) return false;
     return !isTaskDone(t);
   });
   if (status === 'completed') tasks = tasks.filter(t =>  isTaskDone(t));
+  if (status === 'someday')   tasks = tasks.filter(t => t.status === 'someday' && !isTaskDone(t));
   if (category !== 'all')     tasks = tasks.filter(t => t.category === category);
   if (S.filter.goalId !== null) tasks = tasks.filter(t => t.goalId === S.filter.goalId);
   const blk = S.filter.block;
@@ -2888,6 +2900,7 @@ function openEditModal(id) {
   document.getElementById('edit-recur-end').value = t.recurrenceEnd || '';
   toggleRecurEnd('edit');
   document.getElementById('edit-memo').value = t.memo || '';
+  document.getElementById('edit-task-status').value = t.status || 'active';
 
   // Store which task we're editing
   document.getElementById('modal-task-edit').dataset.editId = id;
@@ -2929,6 +2942,7 @@ function saveEditTask() {
     recurrence:    document.getElementById('edit-recur').value || null,
     recurrenceEnd: document.getElementById('edit-recur-end').value || null,
     memo:          document.getElementById('edit-memo').value.trim() || null,
+    status:        document.getElementById('edit-task-status').value || 'active',
   });
   closeAllModals();
   renderAll();
