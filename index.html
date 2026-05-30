@@ -1363,7 +1363,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.10.0';
+const APP_VERSION = 'v1.10.1';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -1829,8 +1829,8 @@ function renderTodoList() {
   if (category !== 'all')     tasks = tasks.filter(t => t.category === category);
   if (S.filter.goalId !== null) tasks = tasks.filter(t => t.goalId === S.filter.goalId);
   const blk = S.filter.block;
-  if (blk === 'planned')   tasks = tasks.filter(t => (t.blockIds||[]).length > 0);
-  if (blk === 'unplanned') tasks = tasks.filter(t => (t.blockIds||[]).length === 0);
+  if (blk === 'planned')   tasks = tasks.filter(t => (t.blockIds||[]).some(bid => getBlockById(bid)));
+  if (blk === 'unplanned') tasks = tasks.filter(t => !(t.blockIds||[]).some(bid => getBlockById(bid)));
   if (date === 'today')       tasks = tasks.filter(t => {
     if (t.dueDate === tod) return true;
     if (t.scheduledDate === tod) return true;
@@ -1855,8 +1855,7 @@ function renderTodoList() {
   }
 
   list.innerHTML = tasks.map(t => {
-    // 繰り返しタスクの完了表示は「全発生日完了 or 強制完了」のみ。個別日チェックでは変わらない
-    const isDone  = isTaskDone(t);
+    const isDone  = t.recurrence ? isRecurringDone(t.id, tod) : isTaskDone(t);
     const overdue = t.dueDate && t.dueDate < tod && !isDone;
     const goal    = t.goalId    ? S.goals.find(g => g.id === t.goalId)    : null;
     const project = t.projectId ? S.projects.find(p => p.id === t.projectId) : null;
@@ -4699,13 +4698,10 @@ async function gistPull() {
 // ──────────────────────────────────────────────
 function exportDayICS() {
   const ds = dateStr(S.calDate);
-  const fmtJST = (d, time) => d.replace(/-/g,'') + 'T' + time.replace(':','') + '00';
+  const fmtJST = (d, time) => d.replace(/-/g,'') + 'T' + time.replace(':','') + '00+0900';
   const scaleMin = { super: 150, large: 120, medium: 60, small: 15 };
 
   let ics = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//TODO App//JA\r\nCALSCALE:GREGORIAN\r\n';
-  ics += 'BEGIN:VTIMEZONE\r\nTZID:Asia/Tokyo\r\nBEGIN:STANDARD\r\n';
-  ics += 'TZOFFSETFROM:+0900\r\nTZOFFSETTO:+0900\r\nTZNAME:JST\r\nDTSTART:19700101T000000\r\n';
-  ics += 'END:STANDARD\r\nEND:VTIMEZONE\r\n';
 
   let count = 0;
 
@@ -4716,8 +4712,8 @@ function exportDayICS() {
     const desc = bTasks.length ? bTasks.map(t => t.title).join('\\n') : '';
     ics += 'BEGIN:VEVENT\r\n';
     ics += `SUMMARY:${summary.replace(/\r?\n/g,'\\n')}\r\n`;
-    ics += `DTSTART;TZID=Asia/Tokyo:${fmtJST(ds, b.startTime)}\r\n`;
-    ics += `DTEND;TZID=Asia/Tokyo:${fmtJST(ds, b.endTime)}\r\n`;
+    ics += `DTSTART:${fmtJST(ds, b.startTime)}\r\n`;
+    ics += `DTEND:${fmtJST(ds, b.endTime)}\r\n`;
     if (desc) ics += `DESCRIPTION:${desc}\r\n`;
     if (b.theme) ics += `CATEGORIES:${b.theme}\r\n`;
     ics += 'END:VEVENT\r\n';
