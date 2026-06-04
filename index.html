@@ -1363,7 +1363,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.10.1';
+const APP_VERSION = 'v1.10.2';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -1821,7 +1821,7 @@ function renderTodoList() {
   // 繰り返しタスク：今日の発生分が完了済みなら未完了フィルターで非表示
   if (status === 'active')    tasks = tasks.filter(t => {
     if (t.status === 'someday') return false;
-    if (t.recurrence && !t.completed && isRecurringDone(t.id, tod)) return false;
+    if (date !== 'today' && t.recurrence && !t.completed && isRecurringDone(t.id, tod)) return false;
     return !isTaskDone(t);
   });
   if (status === 'completed') tasks = tasks.filter(t =>  isTaskDone(t));
