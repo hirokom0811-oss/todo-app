@@ -1363,7 +1363,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.10.3';
+const APP_VERSION = 'v1.10.4';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -3124,7 +3124,7 @@ function addNewTaskToBlock(blockId) {
   const inp = document.getElementById('bm-new-task-input');
   const title = inp ? inp.value.trim() : '';
   if (!title) return;
-  const newId = addTask({ title });
+  const newId = addTask({ title, dueDate: _blockViewDate || today() });
   linkTaskToBlock(newId, blockId);
   renderAll();
   openBlockModal(blockId, _blockViewDate);
