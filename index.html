@@ -467,6 +467,10 @@
       overflow: hidden; text-overflow: ellipsis; line-height: 1.4;
     }
     .day-block-task.done-t { text-decoration: line-through; opacity: .55; }
+    .block-stat-row { display: flex; align-items: center; gap: 5px; margin-bottom: 2px; flex-wrap: wrap; }
+    .block-stat-badge { font-size: 9px; font-weight: 600; padding: 1px 5px; border-radius: 8px; background: #dbeafe; color: #1d4ed8; white-space: nowrap; }
+    .block-stat-badge.done { background: #dcfce7; color: #166534; }
+    .block-stat-free { font-size: 9px; color: #6d28d9; opacity: 0.75; white-space: nowrap; }
     .badge-block { background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; }
     .block-task-row {
       display: flex; align-items: center; gap: 8px;
@@ -1363,7 +1367,7 @@ function uuid() {
 // ──────────────────────────────────────────────
 //  VERSION
 // ──────────────────────────────────────────────
-const APP_VERSION = 'v1.10.4';
+const APP_VERSION = 'v1.11.0';
 
 // ──────────────────────────────────────────────
 //  STATE
@@ -1635,6 +1639,24 @@ function unlinkTaskFromBlock(taskId, blockId) {
 }
 function getBlockById(id) { return S.blocks.find(b => b.id === id); }
 function getBlockTasks(blockId) { return S.tasks.filter(t => (t.blockIds || []).includes(blockId)); }
+function getBlockStats(blockId, date) {
+  const tasks = getBlockTasks(blockId);
+  const total = tasks.length;
+  const done = tasks.filter(t => isTaskDone(t, date)).length;
+  const scaleMinutes = { small: 15, medium: 45, large: 90, super: 120 };
+  const usedMin = tasks.reduce((sum, t) => sum + (scaleMinutes[t.scale] || 15), 0);
+  return { total, done, usedMin };
+}
+function blockFreeLabel(freeMin) {
+  if (freeMin <= 0) return '';
+  const scales = [
+    { label: '特大', min: 120 }, { label: '大', min: 90 },
+    { label: '中', min: 45 },   { label: '小', min: 15 },
+  ];
+  const best = scales.find(s => Math.floor(freeMin / s.min) >= 1);
+  if (!best) return `${freeMin}分`;
+  return `残${freeMin}分（${best.label}${Math.floor(freeMin / best.min)}個分）`;
+}
 function blockLabel(b) {
   if (!b) return '';
   return (b.title ? b.title + ' ' : '') + b.date + ' ' + b.startTime + '–' + b.endTime;
@@ -2235,14 +2257,20 @@ function renderDay(con) {
     const top    = (sh*60+sm) / 60 * HOUR_H;
     const height = Math.max(36, (eh*60+em - sh*60-sm) / 60 * HOUR_H);
     const bTasks = getBlockTasks(b.id);
-    const doneCnt = bTasks.filter(t => isTaskDone(t, ds)).length;
+    const stats = getBlockStats(b.id, ds);
+    const freeMin = (eh*60+em - sh*60-sm) - stats.usedMin;
+    const freeLbl = stats.total > 0 ? blockFreeLabel(freeMin) : '';
+    const allDone = stats.total > 0 && stats.done === stats.total;
+    const statsHtml = stats.total > 0
+      ? `<div class="block-stat-row"><span class="block-stat-badge${allDone?' done':''}">${allDone?`${stats.total}/${stats.total} ✓`:`${stats.done}/${stats.total}完了`}</span>${freeLbl?`<span class="block-stat-free">／ ${freeLbl}</span>`:''}</div>`
+      : '';
     html += `<div class="day-block" style="top:${top}px;height:${height}px"
       onclick="event.stopPropagation();openBlockModal('${b.id}','${ds}')">
       <div class="day-block-hdr">
         <span>${h(b.title || '作業枠')}</span>
-        <span class="day-block-time">${b.startTime}–${b.endTime}
-          ${bTasks.length?`(${doneCnt}/${bTasks.length})`:''}</span>
+        <span class="day-block-time">${b.startTime}–${b.endTime}</span>
       </div>
+      ${statsHtml}
       ${bTasks.map(t=>`<div class="day-block-task ${isTaskDone(t,ds)?'done-t':''}">${h(t.title)}</div>`).join('')}
     </div>`;
   });
